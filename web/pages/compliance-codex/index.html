@@ -2,7 +2,7 @@
 <html class="dark" lang="en"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Neon Guardian - Compliance Codex</title>
+<title>AIGO Security Monitor - Compliance Codex</title>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
@@ -16,15 +16,16 @@
             theme: {
                 extend: {
                     colors: {
-                        "primary": "#00FF94",
-                        "primary-dim": "rgba(0, 255, 148, 0.1)",
-                        "background-dark": "#0A0A0C",
-                        "surface-dark": "#161618",
-                        "border-dark": "#333333",
-                        "critical": "#FF2A6D",
-                        "warning": "#FFD700",
-                        "text-main": "#E0E0E0",
-                        "text-muted": "#666666",
+                        "primary": "#22D3EE",
+                        "success": "#22C55E",
+                        "primary-dim": "rgba(34, 211, 238, 0.14)",
+                        "background-dark": "#050914",
+                        "surface-dark": "#101C34",
+                        "border-dark": "#24385B",
+                        "critical": "#EF4444",
+                        "warning": "#FACC15",
+                        "text-main": "#E6F4FF",
+                        "text-muted": "#7F95B5",
                     },
                     fontFamily: {
                         "display": ["JetBrains Mono", "monospace"],
@@ -33,8 +34,8 @@
                     },
                     borderRadius: {"DEFAULT": "0px", "sm": "0px", "md": "0px", "lg": "0px"},
                     boxShadow: {
-                        "glow": "0 0 10px rgba(0, 255, 148, 0.4)",
-                        "glow-critical": "0 0 10px rgba(255, 42, 109, 0.4)"
+                        "glow": "0 0 12px rgba(34, 211, 238, 0.42)",
+                        "glow-critical": "0 0 10px rgba(239, 68, 68, 0.4)"
                     }
                 },
             },
@@ -46,20 +47,20 @@
             height: 6px;
         }
         ::-webkit-scrollbar-track {
-            background: #161618; 
+            background: #101C34; 
         }
         ::-webkit-scrollbar-thumb {
-            background: #333333; 
+            background: #24385B; 
         }
         ::-webkit-scrollbar-thumb:hover {
-            background: #00FF94; 
+            background: #22D3EE; 
         }
         .bg-grid-pattern {
             background-size: 20px 20px;
-            background-image: radial-gradient(circle, #333333 1px, transparent 1px);
+            background-image: radial-gradient(circle, #24385B 1px, transparent 1px);
         }
         .border-neon {
-            box-shadow: inset 3px 0 0 0 #00FF94;
+            box-shadow: inset 3px 0 0 0 #22D3EE;
         }
         @keyframes blink {
             0%, 100% { opacity: 1; }
@@ -68,40 +69,76 @@
         .animate-blink {
             animation: blink 1s step-end infinite;
         }
+        .future-aurora {
+            position: fixed;
+            top: -10rem;
+            right: -8rem;
+            width: 34rem;
+            height: 34rem;
+            border-radius: 9999px;
+            background: radial-gradient(circle at 28% 30%, rgba(34, 211, 238, 0.24), rgba(59, 130, 246, 0.16) 45%, rgba(5, 9, 20, 0) 72%);
+            pointer-events: none;
+            z-index: 0;
+            filter: blur(2px);
+            animation: aurora-drift 18s ease-in-out infinite alternate;
+        }
+        .future-aurora::after {
+            content: "";
+            position: absolute;
+            top: 20%;
+            right: 18%;
+            width: 14rem;
+            height: 14rem;
+            border: 1px solid rgba(103, 232, 249, 0.35);
+            border-radius: 9999px;
+            animation: pulse-ring 4s ease-out infinite;
+        }
+        @keyframes aurora-drift {
+            0% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.5; }
+            50% { transform: translate3d(-36px, 24px, 0) scale(1.08); opacity: 0.72; }
+            100% { transform: translate3d(-70px, -18px, 0) scale(1); opacity: 0.48; }
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.72); opacity: 0.6; }
+            100% { transform: scale(1.7); opacity: 0; }
+        }
     </style>
 </head>
 <body class="bg-background-dark text-text-main font-body overflow-hidden h-screen flex" data-page="codex">
-<aside class="w-20 md:w-72 border-r border-border-dark bg-surface-dark flex flex-col justify-between shrink-0 relative z-30">
-<div class="p-6 border-b border-border-dark flex flex-col gap-4">
-<div class="flex items-center gap-3">
-<div class="size-2 rounded-full bg-primary shadow-glow animate-pulse"></div>
-<span class="text-xs font-mono font-bold text-primary tracking-widest hidden md:block" id="codex-system-status">SYSTEM_STATUS: ONLINE</span>
+<div class="future-aurora"></div>
+<aside class="w-64 border-r border-border-dark bg-surface-dark flex flex-col relative z-30">
+<div class="p-6 border-b border-border-dark bg-black/20">
+<h1 class="text-white font-mono font-bold text-lg tracking-tighter mb-1">AIGO Security Monitor</h1>
+<div class="flex items-center gap-2">
+<span class="relative flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+</span>
+<span class="text-primary font-mono text-xs font-bold tracking-widest" id="codex-system-status">SYSTEM_STATUS: ONLINE</span>
 </div>
-<div class="text-[10px] text-text-muted font-mono hidden md:block pl-5 leading-relaxed">
+<div class="hidden text-[10px] text-text-muted font-mono mt-4 leading-relaxed">
                 UPTIME: <span id="codex-uptime">42:19:03</span><br/>
                 VERSION: <span id="codex-version">2.4.0_STABLE</span>
             </div>
 </div>
-<nav class="flex-1 flex flex-col py-8 gap-1">
-<a class="group relative flex items-center px-6 py-4 text-text-muted hover:text-primary hover:bg-white/5 transition-all" href="../01-dashboard-command/index.html">
-<div class="absolute left-0 top-0 bottom-0 w-1 bg-transparent group-hover:bg-primary transition-all"></div>
-<span class="material-symbols-outlined text-xl group-hover:scale-110 transition-transform">dashboard</span>
-<span class="ml-4 font-mono font-bold tracking-wider text-sm hidden md:block">DASHBOARD</span>
+<nav class="flex-1 px-3 py-6 space-y-1">
+<a class="group flex items-center gap-3 px-3 py-3 border border-transparent text-text-muted hover:text-text-main hover:border-border-dark hover:bg-white/5 transition-all" href="../dashboard/index.html">
+<span class="material-symbols-outlined text-lg">dashboard</span>
+<span class="font-mono text-xs font-bold uppercase tracking-wider">DASHBOARD</span>
 </a>
-<a class="group relative flex items-center px-6 py-4 text-primary bg-primary-dim transition-all" href="../02-compliance-codex/index.html">
-<div class="absolute left-0 top-0 bottom-0 w-1 bg-primary shadow-glow"></div>
-<span class="material-symbols-outlined text-xl">library_books</span>
-<span class="ml-4 font-mono font-bold tracking-wider text-sm hidden md:block">COMPLIANCE CODEX</span>
+<a class="group flex items-center gap-3 px-3 py-3 bg-primary-dim border border-primary/40 text-primary transition-all" href="../compliance-codex/index.html">
+<span class="material-symbols-outlined text-lg">security</span>
+<span class="font-mono text-xs font-bold uppercase tracking-wider">COMPLIANCE CODEX</span>
+<div class="ml-auto w-1 h-1 bg-primary"></div>
 </a>
-<a class="group relative flex items-center px-6 py-4 text-text-muted hover:text-primary hover:bg-white/5 transition-all" href="../03-scan-report/index.html">
-<div class="absolute left-0 top-0 bottom-0 w-1 bg-transparent group-hover:bg-primary transition-all"></div>
-<span class="material-symbols-outlined text-xl group-hover:scale-110 transition-transform">assessment</span>
-<span class="ml-4 font-mono font-bold tracking-wider text-sm hidden md:block">SCAN REPORTS</span>
+<a class="group flex items-center gap-3 px-3 py-3 border border-transparent text-text-muted hover:text-text-main hover:border-border-dark hover:bg-white/5 transition-all" href="../scan-report/index.html">
+<span class="material-symbols-outlined text-lg">summarize</span>
+<span class="font-mono text-xs font-bold uppercase tracking-wider">SCAN REPORTS</span>
 </a>
 </nav>
-<div class="p-6 border-t border-border-dark hidden md:block">
+<div class="p-5 border-t border-border-dark bg-black/20">
 <div class="flex items-center justify-between mb-6">
-<h3 class="text-[10px] font-mono font-bold text-text-muted tracking-widest uppercase">Policy_Pillars</h3>
+<h3 class="text-[10px] font-mono font-bold text-text-muted tracking-widest uppercase">ACTIVE_FRAMEWORKS</h3>
 <span class="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 font-bold font-mono" id="codex-framework-count">04</span>
 </div>
 <div class="space-y-4" id="codex-framework-list">
@@ -134,43 +171,23 @@
 <span class="text-[10px] text-text-muted font-mono">ACTIVE</span>
 </div>
 </div>
-<div class="mt-8 pt-6 border-t border-border-dark/50">
-<div class="w-full py-2.5 border border-border-dark text-[10px] font-mono font-bold text-text-muted flex items-center justify-center gap-2 uppercase tracking-wider">
-<span class="material-symbols-outlined text-[14px]">visibility</span>
-                View_Only
-            </div>
 </div>
-</div>
-<div class="p-4 border-t border-border-dark md:hidden flex justify-center">
-<span class="material-symbols-outlined text-text-muted">tune</span>
+<div class="p-4 border-t border-border-dark bg-black/40">
+<button class="w-full py-2 border border-critical/50 text-critical font-mono text-[10px] font-bold uppercase hover:bg-critical hover:text-black transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[14px]">power_settings_new</span>
+                Terminate
+            </button>
 </div>
 </aside>
-<main class="flex-1 flex flex-col overflow-hidden relative bg-background-dark">
+<main class="flex-1 flex flex-col overflow-hidden relative z-10 bg-background-dark">
 <div class="absolute inset-0 bg-grid-pattern opacity-10 pointer-events-none z-0"></div>
-<header class="flex items-center justify-between border-b border-border-dark bg-background-dark/95 px-6 py-4 shrink-0 z-20 backdrop-blur-sm">
-<div class="flex items-center gap-4">
-<h2 class="text-primary text-xl font-display font-bold tracking-tight">COMPLIANCE_CODEX</h2>
-<span class="text-border-dark text-xl font-thin">/</span>
-<div class="flex items-center gap-2 text-text-muted">
-<span class="material-symbols-outlined text-sm">folder_open</span>
-<span class="text-sm font-mono tracking-widest" id="codex-selected-framework">AI SECURITY POLICY V5</span>
+<header class="h-14 border-b border-border-dark bg-background-dark/95 backdrop-blur-sm flex items-center justify-between px-8 shrink-0 z-20">
+<div class="flex items-center gap-4 font-mono text-[10px] tracking-widest uppercase">
+<div class="text-primary font-bold">COMPLIANCE CODEX</div>
+<span class="hidden" id="codex-selected-framework">ALL PILLARS SELECTED</span>
 </div>
-</div>
-<div class="flex items-center gap-6">
-<div class="relative hidden lg:block w-64">
-<span class="absolute left-3 top-1/2 -translate-y-1/2 text-primary font-bold">&gt;</span>
-<input class="w-full bg-background-dark border border-border-dark py-1.5 pl-8 pr-3 text-xs font-mono focus:border-primary focus:ring-0 focus:outline-none placeholder-text-muted/50 text-white" placeholder="QUICK_JUMP [CMD+K]" type="text"/>
-</div>
-<div class="h-4 w-px bg-border-dark"></div>
-<div class="flex items-center gap-3 cursor-pointer group">
-<div class="text-right hidden sm:block">
-<p class="text-[10px] text-text-muted font-mono leading-none">OPERATOR</p>
-<p class="text-xs text-white font-mono font-bold leading-none mt-1 group-hover:text-primary" id="codex-operator-name">ADMIN_01</p>
-</div>
-<div class="size-8 border border-border-dark bg-surface-dark flex items-center justify-center group-hover:border-primary transition-colors">
-<div class="bg-center bg-no-repeat bg-cover size-6 grayscale group-hover:grayscale-0 transition-all" id="codex-operator-avatar" style='background-image: url("../assets/compliance-avatar.png");'></div>
-</div>
-</div>
+<div class="font-mono text-[10px] text-text-muted uppercase">
+                REPO: <span class="text-text-main" id="codex-header-repo">neural-net-v2-production</span> // SESSION_ID: <span class="text-primary font-bold tracking-wider" id="codex-session-id">PENDING</span>
 </div>
 </header>
 <div class="flex flex-1 overflow-hidden">
@@ -179,20 +196,16 @@
 <h3 class="text-xs font-bold text-text-muted tracking-widest mb-1">LIBRARY_INDEX</h3>
 </div>
 <div class="flex-1 overflow-y-auto p-2 space-y-1" id="codex-library-list">
-<button class="w-full text-left group flex items-center justify-between px-4 py-3 bg-primary text-background-dark font-bold border border-primary relative overflow-hidden">
-<div class="flex items-center gap-3 relative z-10">
-<span class="material-symbols-outlined text-[18px]">description</span>
-<span class="tracking-wide text-sm font-mono">4_AI Security Policy_v5.docx</span>
+<div class="px-3 py-4 border border-border-dark bg-background-dark text-[10px] text-text-muted font-mono tracking-wide leading-relaxed">
+Select one or more mandate pillars to scope the list.
 </div>
-<div class="absolute top-0 right-0 size-2 bg-background-dark transform rotate-45 translate-x-1.5 -translate-y-1.5"></div>
-</button>
 </div>
-<div class="p-4 border-t border-border-dark bg-[#0e1512]">
+<div class="p-4 border-t border-border-dark bg-[#0D1A2E]">
 <div class="flex items-center gap-2 text-xs text-text-muted mb-2">
 <span class="material-symbols-outlined text-[14px]">update</span>
-<span class="font-mono">SOURCE_SYNC</span>
+<span class="font-mono">MANDATE_SYNC</span>
 </div>
-<div class="font-mono text-xs text-primary" id="codex-last-sync">SYNCING POLICY...</div>
+<div class="font-mono text-xs text-primary" id="codex-last-sync">SYNCING MANDATES...</div>
 </div>
 </aside>
 <div class="flex-1 flex flex-col relative z-10">
@@ -202,9 +215,9 @@
 <div class="flex items-center gap-2 text-primary mb-2">
 <span class="px-2 py-0.5 border border-primary text-[10px] font-bold font-mono">VIEW_ONLY_RULESET</span>
 </div>
-<h1 class="text-3xl font-display font-bold text-white tracking-tight mb-2" id="codex-ruleset-title">AI SECURITY POLICY // CORE SECURITY MANDATES</h1>
+<h1 class="text-3xl font-display font-bold text-white tracking-tight mb-2" id="codex-ruleset-title">CORE SECURITY MANDATES</h1>
 <p class="text-text-muted max-w-3xl text-sm leading-relaxed font-mono" id="codex-ruleset-description">
-                                Read-only mandate and risk view auto-synced from <span class="text-primary">Documents/4_AI Security Policy_v5.docx</span>. No upload flow is available on this page.
+                                Read-only mandate and risk view with multi-pillar scope selection.
                             </p>
 </div>
 <div class="flex flex-col items-end gap-2 shrink-0">
@@ -237,14 +250,14 @@
 <div class="flex-1 overflow-y-auto px-8 pb-20 scroll-smooth">
 <div class="max-w-6xl space-y-4" id="codex-mandates-sections">
 <div class="border border-primary/40 bg-primary/5 p-5 font-mono text-xs text-primary">
-                            LOADING_MANDATES_FROM_POLICY_SOURCE...
+                            LOADING_MANDATES...
 </div>
 </div>
 </div>
 </div>
 </div>
-<footer class="h-8 bg-surface-dark border-t border-border-dark flex items-center overflow-hidden shrink-0 z-10">
-<div class="px-4 bg-critical text-background-dark font-mono text-[10px] font-bold h-full flex items-center shrink-0">
+<footer class="h-8 bg-[#101C34] border-t border-[#24385B] flex items-center overflow-hidden shrink-0">
+<div class="px-4 bg-[#EF4444] text-black font-mono text-[10px] font-bold h-full flex items-center shrink-0">
                 LIVE_THREAT_INTEL
             </div>
 <div class="flex-1 px-4 font-mono text-[10px] text-text-muted whitespace-nowrap overflow-hidden italic" id="codex-threat-feed">
@@ -254,8 +267,7 @@
 </main>
 <script>
         (function () {
-            const DOCX_PATH = "../../Documents/4_AI Security Policy_v5.docx";
-            const DOCX_NAME = "4_AI Security Policy_v5.docx";
+            const DOCX_PATH = "../../assets/policies/ai-security-policy-v5.docx";
             const FALLBACK_POLICY_TEXT = `2.1 Pillar I: Zero-Trust and Least-Privilege Architecture
 2.1.1 Authorization and Access Control – Mandate that all AI models and agents must be granted the absolute minimum permissions required to perform their designated tasks, including tools in tool-use (Principle of Least Privilege). The use of broad, standing privileges should be prohibited; access rights must be granular, context-specific, and revoked when no longer needed.
 Mitigates:
@@ -409,7 +421,7 @@ ASI10: Rogue Agents`;
             let mandates = [];
             let scopedMandates = [];
             let pillars = {};
-            let activePillarGroup = "all";
+            let activePillarGroups = new Set();
 
             function sortPillarEntries(pillarMap) {
                 return Object.entries(pillarMap).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
@@ -570,24 +582,20 @@ ASI10: Rogue Agents`;
 
             function buildLibraryTree(pillarMap) {
                 const ordered = sortPillarEntries(pillarMap);
-                const documentIsActive = activePillarGroup === "all";
-                const documentClass = documentIsActive
-                    ? "bg-primary text-background-dark font-bold border border-primary"
-                    : "bg-background-dark text-text-muted border border-border-dark hover:text-primary hover:border-primary";
-
                 const pills = ordered.map((entry) => {
                     const group = entry[0];
                     const title = entry[1];
                     const mandateCount = mandates.filter((mandate) => mandate.group === group).length;
-                    const isActive = activePillarGroup === group;
+                    const isActive = activePillarGroups.has(group);
                     const itemClass = isActive
                         ? "bg-primary/10 text-primary border border-primary/40"
                         : "bg-background-dark text-text-muted border border-border-dark hover:text-white hover:border-primary/40";
+                    const icon = isActive ? "check_box" : "check_box_outline_blank";
                     return `
-                        <button class="w-full text-left px-4 py-3 transition-all ${itemClass}" type="button" data-library-group="${group}">
+                        <button class="w-full text-left px-4 py-3 transition-all ${itemClass}" type="button" data-library-group="${group}" aria-pressed="${isActive}">
                             <div class="flex items-center justify-between gap-3">
                                 <div class="flex items-center gap-2 min-w-0">
-                                    <span class="material-symbols-outlined text-[16px]">account_tree</span>
+                                    <span class="material-symbols-outlined text-[16px]">${icon}</span>
                                     <span class="text-[11px] font-mono truncate">${group} ${title}</span>
                                 </div>
                                 <span class="text-[10px] font-mono">${mandateCount}</span>
@@ -596,14 +604,7 @@ ASI10: Rogue Agents`;
                 }).join("");
 
                 libraryListEl.innerHTML = `
-                    <div class="text-[10px] text-text-muted font-mono px-2 py-1 tracking-widest">SOURCE_DOCUMENT</div>
-                    <button class="w-full text-left flex items-center justify-between px-4 py-3 relative overflow-hidden transition-all ${documentClass}" type="button" data-library-group="all">
-                        <div class="flex items-center gap-3 relative z-10 min-w-0">
-                            <span class="material-symbols-outlined text-[18px]">description</span>
-                            <span class="tracking-wide text-sm font-mono truncate">${DOCX_NAME}</span>
-                        </div>
-                    </button>
-                    <div class="text-[10px] text-text-muted font-mono px-2 pt-4 pb-1 tracking-widest">FOUR_PILLARS</div>
+                    <div class="text-[10px] text-text-muted font-mono px-2 py-1 tracking-widest">PILLAR_SCOPE (MULTI_SELECT)</div>
                     <div class="space-y-1">${pills}</div>
                 `;
             }
@@ -640,7 +641,7 @@ ASI10: Rogue Agents`;
 
             function renderMandates(items, pillarMap) {
                 if (!items.length) {
-                    mandatesContainer.innerHTML = `<div class="border border-critical/40 bg-critical/10 p-5 font-mono text-xs text-critical">NO_MANDATES_FOUND_IN_SOURCE_DOCUMENT.</div>`;
+                    mandatesContainer.innerHTML = `<div class="border border-critical/40 bg-critical/10 p-5 font-mono text-xs text-critical">NO_MANDATES_FOUND_IN_SELECTED_PILLARS.</div>`;
                     return;
                 }
 
@@ -673,8 +674,8 @@ ASI10: Rogue Agents`;
                                 <div class="absolute top-0 bottom-0 left-0 w-1 ${levelStripeClass(mandate.riskLevel)}"></div>
                                 <div class="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
                                     <div class="flex items-start md:items-center gap-5">
-                                        <button class="mandate-toggle border border-border-dark size-6 flex items-center justify-center text-text-muted hover:text-white hover:border-white transition-all bg-background-dark" type="button" aria-expanded="true">
-                                            <span class="material-symbols-outlined text-base">remove</span>
+                                        <button class="mandate-toggle border border-border-dark size-6 flex items-center justify-center text-text-muted hover:text-white hover:border-white transition-all bg-background-dark" type="button" aria-expanded="false">
+                                            <span class="material-symbols-outlined text-base">add</span>
                                         </button>
                                         <div>
                                             <div class="flex items-center gap-3 mb-1">
@@ -686,13 +687,13 @@ ASI10: Rogue Agents`;
                                     </div>
                                     <div class="flex items-center gap-6 pr-2">
                                         <div class="text-right hidden sm:block">
-                                            <div class="text-[10px] text-text-muted font-mono">SOURCE</div>
-                                            <div class="text-xs text-white font-mono">${DOCX_NAME}</div>
+                                            <div class="text-[10px] text-text-muted font-mono">MANDATE_GROUP</div>
+                                            <div class="text-xs text-white font-mono">${mandate.group}</div>
                                         </div>
                                         <div class="size-3 rounded-full ${levelStripeClass(mandate.riskLevel)} opacity-90"></div>
                                     </div>
                                 </div>
-                                <div class="mandate-body px-5 pb-5 pl-[4.25rem] pr-8 border-t border-border-dark/50 pt-5 bg-black/30">
+                                <div class="mandate-body hidden px-5 pb-5 pl-[4.25rem] pr-8 border-t border-border-dark/50 pt-5 bg-black/30">
                                     <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                                         <div class="md:col-span-2 space-y-4">
                                             <p class="text-text-main text-sm leading-relaxed font-mono opacity-90">${mandate.summary}</p>
@@ -712,10 +713,6 @@ ASI10: Rogue Agents`;
                                             <div>
                                                 <span class="text-[10px] text-text-muted font-bold block mb-1 font-mono">RISK_LEVEL</span>
                                                 <span class="text-sm text-white font-mono">${levelText(mandate.riskLevel)}</span>
-                                            </div>
-                                            <div>
-                                                <span class="text-[10px] text-text-muted font-bold block mb-1 font-mono">SOURCE_DOC</span>
-                                                <span class="text-sm text-white font-mono">${DOCX_NAME}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -740,22 +737,27 @@ ASI10: Rogue Agents`;
             }
 
             function renderCurrentScope() {
-                scopedMandates = activePillarGroup === "all"
-                    ? mandates.slice()
-                    : mandates.filter((mandate) => mandate.group === activePillarGroup);
+                scopedMandates = mandates.filter((mandate) => activePillarGroups.has(mandate.group));
 
                 renderMandates(scopedMandates, pillars);
-                if (activePillarGroup === "all") {
-                    selectedFrameworkEl.textContent = "AI SECURITY POLICY V5";
+                if (activePillarGroups.size === 0) {
+                    selectedFrameworkEl.textContent = "NO_PILLARS_SELECTED";
+                } else if (activePillarGroups.size === 1) {
+                    const group = Array.from(activePillarGroups)[0];
+                    const label = pillars[group] || group;
+                    selectedFrameworkEl.textContent = `${group} ${label}`.toUpperCase();
                 } else {
-                    const label = pillars[activePillarGroup] || activePillarGroup;
-                    selectedFrameworkEl.textContent = `${activePillarGroup} ${label}`.toUpperCase();
+                    selectedFrameworkEl.textContent = `${activePillarGroups.size} PILLARS SELECTED`;
                 }
                 applyFilters();
             }
 
-            function setActivePillarGroup(nextGroup) {
-                activePillarGroup = nextGroup;
+            function togglePillarGroup(nextGroup) {
+                if (activePillarGroups.has(nextGroup) && activePillarGroups.size > 1) {
+                    activePillarGroups.delete(nextGroup);
+                } else {
+                    activePillarGroups.add(nextGroup);
+                }
                 buildLibraryTree(pillars);
                 renderCurrentScope();
             }
@@ -801,29 +803,100 @@ ASI10: Rogue Agents`;
                 if (!trigger) {
                     return;
                 }
-                setActivePillarGroup(trigger.dataset.libraryGroup);
+                togglePillarGroup(trigger.dataset.libraryGroup);
             });
 
             (async function init() {
                 let parsed;
                 try {
                     parsed = await loadFromDocx();
-                    lastSyncEl.textContent = `LIVE // ${DOCX_NAME} // ${new Date().toISOString().replace("T", " ").slice(0, 19)} UTC`;
+                    lastSyncEl.textContent = `LIVE // ${new Date().toISOString().replace("T", " ").slice(0, 19)} UTC`;
                 } catch (error) {
                     const fallbackLines = FALLBACK_POLICY_TEXT.split("\n").map(cleanLine).filter(Boolean);
                     parsed = parseFromLines(fallbackLines);
-                    lastSyncEl.textContent = `FALLBACK_SNAPSHOT // ${DOCX_NAME}`;
+                    lastSyncEl.textContent = "FALLBACK_SNAPSHOT";
                 }
 
                 mandates = parsed.mandates;
                 pillars = parsed.pillars;
                 buildPillarList(pillars);
                 const orderedPillars = sortPillarEntries(pillars).map((entry) => entry[0]);
-                activePillarGroup = orderedPillars[0] || "all";
+                activePillarGroups = new Set(orderedPillars);
                 buildLibraryTree(pillars);
                 renderCurrentScope();
                 setActiveFilter("all");
             }());
         }());
     </script>
+<script>
+        (function () {
+            const CONTEXT_KEY = "neon_guardian_scan_context_v1";
+            const repoEl = document.getElementById("codex-header-repo");
+            const sessionEl = document.getElementById("codex-session-id");
+
+            if (!repoEl || !sessionEl) {
+                return;
+            }
+
+            function normalizeRepoName(value) {
+                if (!value) {
+                    return "";
+                }
+                const text = String(value).trim();
+                const parts = text.split(":");
+                const candidate = parts.length > 1 ? parts.slice(1).join(":") : text;
+                return candidate.trim().replace(/\s+/g, "-");
+            }
+
+            function generateSessionId(repo) {
+                const repoToken = normalizeRepoName(repo).replace(/[^a-zA-Z0-9]/g, "").slice(0, 4).toUpperCase() || "SCAN";
+                const timestamp = Date.now().toString(36).toUpperCase().slice(-6);
+                const nonce = Math.random().toString(36).slice(2, 6).toUpperCase();
+                return "NG-" + repoToken + "-" + timestamp + nonce;
+            }
+
+            function loadContext() {
+                try {
+                    const raw = localStorage.getItem(CONTEXT_KEY);
+                    const parsed = raw ? JSON.parse(raw) : null;
+                    return parsed && typeof parsed === "object" ? parsed : {};
+                } catch (_error) {
+                    return {};
+                }
+            }
+
+            function saveContext(context) {
+                try {
+                    localStorage.setItem(CONTEXT_KEY, JSON.stringify(context));
+                } catch (_error) {
+                    // Ignore storage errors.
+                }
+            }
+
+            function syncFromContext(onlyRead) {
+                const context = loadContext();
+                const repo = normalizeRepoName(context.repo || repoEl.textContent || "unknown-repo");
+                const sessionId = context.sessionId || generateSessionId(repo);
+
+                repoEl.textContent = repo;
+                sessionEl.textContent = sessionId;
+
+                if (!onlyRead) {
+                    saveContext({
+                        repo: repo,
+                        sessionId: sessionId,
+                        updatedAt: new Date().toISOString()
+                    });
+                }
+            }
+
+            syncFromContext(false);
+            window.addEventListener("storage", function (event) {
+                if (event.key === CONTEXT_KEY) {
+                    syncFromContext(true);
+                }
+            });
+        }());
+    </script>
+<script defer="" src="../../assets/live-data.js"></script>
 </body></html>

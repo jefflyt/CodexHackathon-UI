@@ -6,7 +6,7 @@
   "selectedFramework": "NIST AI RMF",
   "operator": {
     "name": "ADMIN_01",
-    "avatar": "../assets/compliance-avatar.png"
+    "avatar": "../../assets/compliance-avatar.png"
   },
   "activeFrameworks": [
     { "name": "NIST AI RMF", "version": "v1.0", "active": true },

@@ -2,7 +2,7 @@
 <html class="dark" lang="en"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Neon Guardian - Scan Report - Mandate Drilldown</title>
+<title>AIGO Security Monitor - Scan Report - Mandate Drilldown</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
@@ -14,14 +14,15 @@
             theme: {
                 extend: {
                     colors: {
-                        "primary": "#00FF94", 
-                        "critical": "#FF2A6D", 
-                        "background": "#0A0A0C",
-                        "surface": "#161618",
-                        "border": "#333333",
-                        "text-main": "#E0E0E0",
-                        "text-muted": "#666666",
-                        "warning": "#FFD700",
+                        "primary": "#22D3EE", 
+                        "success": "#22C55E",
+                        "critical": "#EF4444", 
+                        "background": "#050914",
+                        "surface": "#101C34",
+                        "border": "#24385B",
+                        "text-main": "#E6F4FF",
+                        "text-muted": "#7F95B5",
+                        "warning": "#FACC15",
                     },
                     fontFamily: {
                         "mono": ["JetBrains Mono", "monospace"],
@@ -36,7 +37,7 @@
                         "full": "0px"
                     },
                     backgroundImage: {
-                        'grid-pattern': "radial-gradient(circle, #333333 1px, transparent 1px)",
+                        'grid-pattern': "radial-gradient(circle, #24385B 1px, transparent 1px)",
                     }
                 },
             },
@@ -53,13 +54,13 @@
             height: 8px;
         }
         ::-webkit-scrollbar-track {
-            background: #0A0A0C; 
+            background: #050914; 
         }
         ::-webkit-scrollbar-thumb {
-            background: #333333; 
+            background: #24385B; 
         }
         ::-webkit-scrollbar-thumb:hover {
-            background: #00FF94; 
+            background: #22D3EE; 
         }
         .scanline {
             background: linear-gradient(
@@ -73,34 +74,66 @@
             pointer-events: none;
         }
         .text-glow-primary {
-            text-shadow: 0 0 10px rgba(0, 255, 148, 0.4);
+            text-shadow: 0 0 10px rgba(34, 211, 238, 0.38);
         }
         .text-glow-critical {
-            text-shadow: 0 0 10px rgba(255, 42, 109, 0.4);
+            text-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
         }
         .border-glow-critical {
-            box-shadow: 0 0 8px rgba(255, 42, 109, 0.2);
+            box-shadow: 0 0 8px rgba(239, 68, 68, 0.24);
+        }
+        .future-aurora {
+            position: fixed;
+            top: -10rem;
+            right: -8rem;
+            width: 34rem;
+            height: 34rem;
+            border-radius: 9999px;
+            background: radial-gradient(circle at 28% 30%, rgba(34, 211, 238, 0.24), rgba(59, 130, 246, 0.16) 45%, rgba(5, 9, 20, 0) 72%);
+            pointer-events: none;
+            z-index: 0;
+            filter: blur(2px);
+            animation: aurora-drift 18s ease-in-out infinite alternate;
+        }
+        .future-aurora::after {
+            content: "";
+            position: absolute;
+            top: 20%;
+            right: 18%;
+            width: 14rem;
+            height: 14rem;
+            border: 1px solid rgba(103, 232, 249, 0.35);
+            border-radius: 9999px;
+            animation: pulse-ring 4s ease-out infinite;
+        }
+        @keyframes aurora-drift {
+            0% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.5; }
+            50% { transform: translate3d(-36px, 24px, 0) scale(1.08); opacity: 0.72; }
+            100% { transform: translate3d(-70px, -18px, 0) scale(1); opacity: 0.48; }
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.72); opacity: 0.6; }
+            100% { transform: scale(1.7); opacity: 0; }
         }
     </style>
 </head>
 <body class="min-h-screen flex overflow-hidden selection:bg-primary selection:text-black" data-page="scan-report">
+<div class="future-aurora"></div>
 <aside class="w-64 border-r border-border bg-surface flex-shrink-0 flex flex-col h-screen z-30">
-<div class="p-6 border-b border-border flex items-center gap-3">
-<div class="size-6 text-primary">
-<span class="material-symbols-outlined text-[24px]">terminal</span>
-</div>
-<h1 class="text-white text-sm font-mono font-bold tracking-tight uppercase leading-none">NEON<br/><span class="text-primary">GUARDIAN</span></h1>
-</div>
-<div class="p-6 border-b border-border">
-<div class="flex items-center justify-between mb-2">
-<span class="text-[10px] font-mono text-text-muted uppercase">System_Status</span>
-<div class="flex items-center gap-1.5">
+<div class="p-6 border-b border-border bg-black/20">
+<h1 class="text-white font-mono font-bold text-lg tracking-tighter mb-1">AIGO Security Monitor</h1>
+<div class="flex items-center gap-2">
 <span class="relative flex h-2 w-2">
 <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
 <span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
 </span>
-<span class="text-[10px] font-mono text-primary" id="scan-system-status">ONLINE</span>
+<span class="text-primary font-mono text-xs font-bold tracking-widest">SYSTEM_STATUS: <span id="scan-system-status">ONLINE</span></span>
 </div>
+</div>
+<div class="hidden p-6 border-b border-border bg-black/10">
+<div class="flex items-center justify-between mb-2">
+<span class="text-[10px] font-mono text-text-muted uppercase">System_Health</span>
+<span class="text-[10px] font-mono text-primary">LIVE</span>
 </div>
 <div class="w-full bg-background h-1.5 border border-border">
 <div class="bg-primary h-full w-[94%] relative" id="scan-system-health-bar"></div>
@@ -111,20 +144,21 @@
 </div>
 </div>
 <nav class="flex-1 overflow-y-auto py-6 px-3 space-y-1">
-<a class="flex items-center gap-3 px-3 py-2 text-text-muted hover:text-white hover:bg-white/5 transition-colors group" href="../01-dashboard-command/index.html">
-<span class="material-symbols-outlined text-[20px] group-hover:text-primary transition-colors">grid_view</span>
-<span class="text-xs font-mono uppercase tracking-wide">DASHBOARD</span>
+<a class="group flex items-center gap-3 px-3 py-3 border border-transparent text-text-muted hover:text-text-main hover:border-border hover:bg-white/5 transition-all" href="../dashboard/index.html">
+<span class="material-symbols-outlined text-lg">dashboard</span>
+<span class="font-mono text-xs font-bold uppercase tracking-wider">DASHBOARD</span>
 </a>
-<a class="flex items-center gap-3 px-3 py-2 text-text-muted hover:text-white hover:bg-white/5 transition-colors group" href="../02-compliance-codex/index.html">
-<span class="material-symbols-outlined text-[20px] group-hover:text-primary transition-colors">menu_book</span>
-<span class="text-xs font-mono uppercase tracking-wide">COMPLIANCE CODEX</span>
+<a class="group flex items-center gap-3 px-3 py-3 border border-transparent text-text-muted hover:text-text-main hover:border-border hover:bg-white/5 transition-all" href="../compliance-codex/index.html">
+<span class="material-symbols-outlined text-lg">security</span>
+<span class="font-mono text-xs font-bold uppercase tracking-wider">COMPLIANCE CODEX</span>
 </a>
-<a class="flex items-center gap-3 px-3 py-2 text-primary bg-primary/10 border-r-2 border-primary transition-colors group" href="../03-scan-report/index.html">
-<span class="material-symbols-outlined text-[20px]">policy</span>
-<span class="text-xs font-mono uppercase tracking-wide font-bold">SCAN REPORTS</span>
+<a class="group flex items-center gap-3 px-3 py-3 bg-primary/10 border border-primary/30 text-primary transition-all" href="../scan-report/index.html">
+<span class="material-symbols-outlined text-lg">summarize</span>
+<span class="font-mono text-xs font-bold uppercase tracking-wider">SCAN REPORTS</span>
+<div class="ml-auto w-1 h-1 bg-primary"></div>
 </a>
 <div class="pt-6 mt-6 border-t border-border px-3">
-<h3 class="text-[10px] font-mono text-text-muted uppercase mb-4 pl-1">Active_Frameworks</h3>
+<h3 class="text-[10px] font-mono text-text-muted uppercase mb-4 pl-1">ACTIVE_FRAMEWORKS</h3>
 <div class="space-y-3" id="scan-framework-list">
 <label class="flex items-center justify-between cursor-pointer group">
 <span class="text-xs font-mono text-white group-hover:text-primary transition-colors">NIST AI RMF</span>
@@ -146,30 +180,20 @@
 </div>
 </nav>
 <div class="p-6 border-t border-border">
-<button class="w-full flex items-center justify-center gap-2 py-2 border border-critical/50 text-critical hover:bg-critical hover:text-black transition-all text-xs font-mono font-bold uppercase">
-<span class="material-symbols-outlined text-[16px]">logout</span>
-            Disconnect
+<button class="w-full py-2 border border-critical/50 text-critical font-mono text-[10px] font-bold uppercase hover:bg-critical hover:text-black transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[14px]">power_settings_new</span>
+            Terminate
         </button>
 </div>
 </aside>
-<main class="flex-1 flex flex-col h-screen overflow-hidden relative">
+<main class="flex-1 flex flex-col h-screen overflow-hidden relative z-10">
 <div class="absolute inset-0 bg-grid-pattern opacity-[0.03] pointer-events-none bg-[size:20px_20px] z-0"></div>
-<header class="flex-shrink-0 flex items-center justify-between px-8 py-4 border-b border-border bg-background/80 backdrop-blur-sm z-10">
-<div class="flex items-center gap-4">
-<h2 class="text-white text-lg font-mono font-bold tracking-tight uppercase">SCAN_REPORT // MANDATE_DRILLDOWN</h2>
+<header class="h-14 border-b border-border bg-background/80 backdrop-blur-md flex items-center justify-between px-8 shrink-0 z-10">
+<div class="flex items-center gap-4 font-mono text-[10px] tracking-widest uppercase">
+<div class="text-primary font-bold">SCAN REPORTS</div>
 </div>
-<div class="flex gap-4 items-center">
-<div class="text-[10px] font-mono text-text-muted uppercase hidden md:block">
-                REPO: <span class="text-white" id="scan-repo">neural-net-v2</span> // REF: <span class="text-white" id="scan-ref">HEAD:main</span>
-</div>
-<div class="h-4 w-px bg-border hidden md:block"></div>
-<div class="flex items-center gap-2">
-<span class="text-text-muted text-xs font-mono">REPORT_ID:</span>
-<span class="text-primary text-xs font-mono font-bold tracking-wider" id="scan-report-id">NG-9921-X</span>
-</div>
-<button class="flex items-center justify-center h-8 w-8 bg-surface border border-border text-white hover:border-primary hover:text-primary transition-colors ml-2">
-<span class="material-symbols-outlined text-[18px]">settings</span>
-</button>
+<div class="font-mono text-[10px] text-text-muted uppercase">
+                REPO: <span class="text-text-main" id="scan-repo">neural-net-v2</span> // SESSION_ID: <span class="text-primary font-bold tracking-wider" id="scan-session-id">PENDING</span>
 </div>
 </header>
 <div class="flex-1 overflow-y-auto p-8 relative z-10">
@@ -207,7 +231,7 @@
 <div class="flex flex-col items-center justify-center py-4">
 <div class="size-40 border-[10px] border-border flex items-center justify-center relative">
 <svg class="absolute inset-0 rotate-[-90deg]" viewBox="0 0 100 100">
-<circle cx="50" cy="50" fill="transparent" id="scan-pass-rate-circle" r="45" stroke="#FF2A6D" stroke-dasharray="198 283" stroke-width="10"></circle>
+<circle cx="50" cy="50" fill="transparent" id="scan-pass-rate-circle" r="45" stroke="#EF4444" stroke-dasharray="198 283" stroke-width="10"></circle>
 </svg>
 <div class="flex flex-col items-center">
 <span class="text-5xl font-mono font-bold text-white" id="scan-pass-rate">64%</span>
@@ -218,7 +242,7 @@
 <div class="grid grid-cols-2 gap-4 mt-8 pt-6 border-t border-border">
 <div>
 <div class="text-[9px] text-text-muted font-mono uppercase tracking-tighter">SUCCESS</div>
-<div class="text-2xl font-mono text-primary" id="scan-success-count">91</div>
+<div class="text-2xl font-mono text-success" id="scan-success-count">91</div>
 </div>
 <div class="text-right">
 <div class="text-[9px] text-text-muted font-mono uppercase tracking-tighter">FAIL</div>
@@ -294,7 +318,7 @@
 <span class="material-symbols-outlined text-sm">info</span>
 <span class="text-[10px] font-mono uppercase">Internal Reference ID: SEC-772</span>
 </div>
-<a class="w-full sm:w-auto px-6 py-2 border border-critical text-critical text-xs font-bold font-mono hover:bg-critical hover:text-black transition-all text-center uppercase tracking-widest" href="../02-compliance-codex/index.html">
+<a class="w-full sm:w-auto px-6 py-2 border border-critical text-critical text-xs font-bold font-mono hover:bg-critical hover:text-black transition-all text-center uppercase tracking-widest" href="../compliance-codex/index.html">
                                 [ VIEW MANDATE DOCUMENTATION ]
                             </a>
 </div>
@@ -326,7 +350,7 @@
 <span class="material-symbols-outlined text-sm">info</span>
 <span class="text-[10px] font-mono uppercase">Internal Reference ID: COMP-EU-9</span>
 </div>
-<a class="w-full sm:w-auto px-6 py-2 border border-critical text-critical text-xs font-bold font-mono hover:bg-critical hover:text-black transition-all text-center uppercase tracking-widest" href="../02-compliance-codex/index.html">
+<a class="w-full sm:w-auto px-6 py-2 border border-critical text-critical text-xs font-bold font-mono hover:bg-critical hover:text-black transition-all text-center uppercase tracking-widest" href="../compliance-codex/index.html">
                                 [ VIEW MANDATE DOCUMENTATION ]
                             </a>
 </div>
@@ -358,7 +382,7 @@
 <span class="material-symbols-outlined text-sm">info</span>
 <span class="text-[10px] font-mono uppercase">Internal Reference ID: APPSEC-02</span>
 </div>
-<a class="w-full sm:w-auto px-6 py-2 border border-warning text-warning text-xs font-bold font-mono hover:bg-warning hover:text-black transition-all text-center uppercase tracking-widest" href="../02-compliance-codex/index.html">
+<a class="w-full sm:w-auto px-6 py-2 border border-warning text-warning text-xs font-bold font-mono hover:bg-warning hover:text-black transition-all text-center uppercase tracking-widest" href="../compliance-codex/index.html">
                                 [ VIEW MANDATE DOCUMENTATION ]
                             </a>
 </div>
@@ -369,8 +393,8 @@
 <div class="lg:col-span-3 flex flex-col gap-6">
 <div>
 <div class="flex items-center justify-between mb-4">
-<h3 class="text-primary font-mono font-bold text-sm flex items-center gap-2 uppercase">
-<span class="material-symbols-outlined text-primary text-[20px]">verified</span>
+<h3 class="text-success font-mono font-bold text-sm flex items-center gap-2 uppercase">
+<span class="material-symbols-outlined text-success text-[20px]">verified</span>
                             Passed_Checks (<span id="scan-passed-count">91</span>)
                         </h3>
 </div>
@@ -380,21 +404,21 @@
 <span class="text-[9px] text-text-muted font-mono font-bold">NIST-AI-3.1</span>
 <span class="text-[11px] text-white font-mono uppercase">Bias Testing Protocol</span>
 </div>
-<span class="material-symbols-outlined text-primary text-[18px]">check</span>
+<span class="material-symbols-outlined text-success text-[18px]">check</span>
 </div>
 <div class="bg-surface/30 border border-border p-3 flex items-center justify-between hover:border-primary/50 transition-colors cursor-pointer">
 <div class="flex flex-col">
 <span class="text-[9px] text-text-muted font-mono font-bold">ISO-42001-A</span>
 <span class="text-[11px] text-white font-mono uppercase">Model Documentation</span>
 </div>
-<span class="material-symbols-outlined text-primary text-[18px]">check</span>
+<span class="material-symbols-outlined text-success text-[18px]">check</span>
 </div>
 <div class="bg-surface/30 border border-border p-3 flex items-center justify-between hover:border-primary/50 transition-colors cursor-pointer">
 <div class="flex flex-col">
 <span class="text-[9px] text-text-muted font-mono font-bold">GDPR-ART-22</span>
 <span class="text-[11px] text-white font-mono uppercase">Automated Decisions</span>
 </div>
-<span class="material-symbols-outlined text-primary text-[18px]">check</span>
+<span class="material-symbols-outlined text-success text-[18px]">check</span>
 </div>
 <div class="text-center py-3 text-[10px] font-mono text-text-muted border border-border border-dashed hover:text-white transition-colors cursor-pointer uppercase">
                             + 88 more compliant mandates
@@ -421,19 +445,14 @@
 </div>
 </div>
 </div>
-<footer class="mt-20 border-t border-border pt-8 pb-4 max-w-7xl mx-auto">
-<div class="flex flex-col md:flex-row justify-between items-center opacity-40 hover:opacity-100 transition-opacity gap-4">
+<div class="mt-20 border-t border-border pt-8 pb-4 max-w-7xl mx-auto opacity-40">
 <div class="text-[10px] font-mono tracking-widest uppercase">
-                    NEON_GUARDIAN // TERMINAL_ACCESS: ADMIN_LEVEL_4 // ENCRYPTION: ACTIVE
-                </div>
-<div class="text-[10px] font-mono uppercase">
                     SESSION_TOKEN: <span id="scan-session-token">0x99281-AF-2023</span> // NODE: <span id="scan-node">SG-BETA-01</span>
                 </div>
 </div>
-</footer>
 </div>
-<footer class="h-8 bg-surface border-t border-border flex items-center overflow-hidden shrink-0 z-10">
-<div class="px-4 bg-critical text-background font-mono text-[10px] font-bold h-full flex items-center shrink-0">
+<footer class="h-8 bg-[#101C34] border-t border-[#24385B] flex items-center overflow-hidden shrink-0">
+<div class="px-4 bg-[#EF4444] text-black font-mono text-[10px] font-bold h-full flex items-center shrink-0">
                 LIVE_THREAT_INTEL
             </div>
 <div class="flex-1 px-4 font-mono text-[10px] text-text-muted whitespace-nowrap overflow-hidden italic" id="scan-threat-feed">
@@ -442,5 +461,5 @@
 </footer>
 </main>
 <div class="fixed inset-0 pointer-events-none z-50 mix-blend-overlay opacity-10 scanline"></div>
-<script defer="" src="../assets/live-data.js"></script>
+<script defer="" src="../../assets/live-data.js"></script>
 </body></html>

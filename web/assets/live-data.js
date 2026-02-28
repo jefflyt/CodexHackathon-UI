@@ -8,17 +8,17 @@
     dashboard: [
       window.NEON_DATA_ENDPOINTS?.dashboard,
       "/api/dashboard",
-      "../data/dashboard.json"
+      "../../data/dashboard.json"
     ],
     codex: [
       window.NEON_DATA_ENDPOINTS?.codex,
       "/api/compliance-codex",
-      "../data/compliance-codex.json"
+      "../../data/compliance-codex.json"
     ],
     "scan-report": [
       window.NEON_DATA_ENDPOINTS?.scanReport,
       "/api/scan-report",
-      "../data/scan-report.json"
+      "../../data/scan-report.json"
     ]
   };
 
@@ -27,6 +27,7 @@
     codex: renderCodex,
     "scan-report": renderScanReport
   };
+  const SCAN_CONTEXT_KEY = "neon_guardian_scan_context_v1";
 
   initialize().catch(() => {
     // Keep static HTML as fallback if live data fails.
@@ -79,6 +80,68 @@
     return null;
   }
 
+  function getStoredScanContext() {
+    try {
+      const raw = window.localStorage.getItem(SCAN_CONTEXT_KEY);
+      const parsed = raw ? JSON.parse(raw) : null;
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch (_error) {
+      return {};
+    }
+  }
+
+  function storeScanContext(context) {
+    try {
+      window.localStorage.setItem(SCAN_CONTEXT_KEY, JSON.stringify(context));
+    } catch (_error) {
+      // Ignore storage errors.
+    }
+  }
+
+  function normalizeRepoName(value) {
+    if (!isFilled(value)) {
+      return "";
+    }
+
+    const text = String(value).trim();
+    const parts = text.split(":");
+    const candidate = parts.length > 1 ? parts.slice(1).join(":") : text;
+    return candidate.trim().replace(/\s+/g, "-");
+  }
+
+  function generateSessionId(repo) {
+    const repoToken = normalizeRepoName(repo).replace(/[^a-zA-Z0-9]/g, "").slice(0, 4).toUpperCase() || "SCAN";
+    const timestamp = Date.now().toString(36).toUpperCase().slice(-6);
+    const nonce = Math.random().toString(36).slice(2, 6).toUpperCase();
+    return `NG-${repoToken}-${timestamp}${nonce}`;
+  }
+
+  function upsertScanContext(repoCandidate, sessionCandidate, forceNewSession) {
+    const context = getStoredScanContext();
+    const repo = normalizeRepoName(repoCandidate) || normalizeRepoName(context.repo) || "unknown-repo";
+    const repoChanged = normalizeRepoName(context.repo) !== repo;
+    const providedSession = isFilled(sessionCandidate) ? String(sessionCandidate) : "";
+
+    const sessionId =
+      providedSession ||
+      (forceNewSession || repoChanged || !isFilled(context.sessionId) ? generateSessionId(repo) : String(context.sessionId));
+
+    const nextContext = {
+      repo,
+      sessionId,
+      updatedAt: new Date().toISOString()
+    };
+    storeScanContext(nextContext);
+    return nextContext;
+  }
+
+  function applyHeaderScanContext(repoElementId, sessionElementId, repoCandidate, sessionCandidate, forceNewSession) {
+    const context = upsertScanContext(repoCandidate, sessionCandidate, forceNewSession);
+    setText(repoElementId, context.repo);
+    setText(sessionElementId, context.sessionId);
+    return context;
+  }
+
   function renderDashboard(data) {
     if (!data || typeof data !== "object") {
       return;
@@ -108,6 +171,18 @@
     const targetInput = byId("dashboard-target-input");
     if (targetInput && isFilled(data.targetInput)) {
       targetInput.value = data.targetInput;
+    }
+
+    const repoFromDashboard = normalizeRepoName(data.repo || targetInput?.value || data.targetInput);
+    applyHeaderScanContext("dashboard-header-repo", "dashboard-session-id", repoFromDashboard, data.sessionId, false);
+
+    const executeScanButton = byId("dashboard-execute-scan");
+    if (executeScanButton && !executeScanButton.dataset.boundSessionGenerator) {
+      executeScanButton.dataset.boundSessionGenerator = "1";
+      executeScanButton.addEventListener("click", () => {
+        const latestRepo = normalizeRepoName(byId("dashboard-target-input")?.value || repoFromDashboard);
+        applyHeaderScanContext("dashboard-header-repo", "dashboard-session-id", latestRepo, "", true);
+      });
     }
 
     const frameworks = toArray(data.frameworks);
@@ -470,10 +545,10 @@
           (item) => `
             <div class="bg-surface/30 border border-border p-3 flex items-center justify-between hover:border-primary/50 transition-colors cursor-pointer">
               <div class="flex flex-col">
-                <span class="text-[9px] text-text-muted font-mono font-bold">${escapeHtml(item.code || "UNKNOWN")}</span>
-                <span class="text-[11px] text-white font-mono uppercase">${escapeHtml(item.title || "Untitled Check")}</span>
-              </div>
-              <span class="material-symbols-outlined text-primary text-[18px]">check</span>
+              <span class="text-[9px] text-text-muted font-mono font-bold">${escapeHtml(item.code || "UNKNOWN")}</span>
+              <span class="text-[11px] text-white font-mono uppercase">${escapeHtml(item.title || "Untitled Check")}</span>
+            </div>
+              <span class="material-symbols-outlined text-success text-[18px]">check</span>
             </div>
           `
         )
@@ -511,6 +586,13 @@
     if (isFilled(data.node)) {
       setText("scan-node", data.node);
     }
+
+    const storedContext = getStoredScanContext();
+    const repoFromScanReport = normalizeRepoName(data.repo || byId("scan-repo")?.textContent);
+    const preferredRepo = isFilled(data.sessionId)
+      ? repoFromScanReport
+      : normalizeRepoName(storedContext.repo) || repoFromScanReport;
+    applyHeaderScanContext("scan-repo", "scan-session-id", preferredRepo, data.sessionId, false);
   }
 
   function renderCodexSection(section, index) {
@@ -611,7 +693,7 @@
 
   function renderFailedMandate(item) {
     const tone = getTone(item.severity || "critical");
-    const mandateLink = isFilled(item.documentationUrl) ? item.documentationUrl : "../02-compliance-codex/index.html";
+    const mandateLink = isFilled(item.documentationUrl) ? item.documentationUrl : "../compliance-codex/index.html";
 
     return `
       <div class="border ${tone.borderClass} bg-surface/50 relative group">
@@ -656,22 +738,31 @@
     const subtitle = byId("scan-status-subtitle");
 
     if (banner) {
-      banner.classList.remove("border-critical", "bg-critical/5", "border-warning", "bg-warning/5", "border-primary", "bg-primary/5");
+      banner.classList.remove(
+        "border-critical",
+        "bg-critical/5",
+        "border-warning",
+        "bg-warning/5",
+        "border-success",
+        "bg-success/5",
+        "border-primary",
+        "bg-primary/5"
+      );
       banner.classList.add(tone.borderClass, tone.bannerBgClass);
     }
 
     if (stripe) {
-      stripe.classList.remove("bg-critical", "bg-warning", "bg-primary");
+      stripe.classList.remove("bg-critical", "bg-warning", "bg-success", "bg-primary");
       stripe.classList.add(tone.bgClass);
     }
 
     if (title) {
-      title.classList.remove("text-critical", "text-warning", "text-primary");
+      title.classList.remove("text-critical", "text-warning", "text-success", "text-primary");
       title.classList.add(tone.textClass);
     }
 
     if (subtitle) {
-      subtitle.classList.remove("text-critical/70", "text-warning/70", "text-primary/70");
+      subtitle.classList.remove("text-critical/70", "text-warning/70", "text-success/70", "text-primary/70");
       subtitle.classList.add(tone.subtitleClass);
     }
   }
@@ -689,7 +780,7 @@
         subtitleClass: "text-critical/70",
         bannerBgClass: "bg-critical/5",
         glowClass: "shadow-glow-critical",
-        hex: "#FF2A6D"
+        hex: "#EF4444"
       };
     }
 
@@ -703,7 +794,21 @@
         subtitleClass: "text-warning/70",
         bannerBgClass: "bg-warning/5",
         glowClass: "",
-        hex: "#FFD700"
+        hex: "#FACC15"
+      };
+    }
+
+    if (token.includes("pass") || token.includes("success") || token.includes("compliant") || token.includes("resolved")) {
+      return {
+        textClass: "text-success",
+        bgClass: "bg-success",
+        borderClass: "border-success",
+        badgeClass: "bg-success/20 text-success",
+        badgeBorderClass: "border-success/30",
+        subtitleClass: "text-success/70",
+        bannerBgClass: "bg-success/5",
+        glowClass: "",
+        hex: "#22C55E"
       };
     }
 
@@ -716,7 +821,7 @@
       subtitleClass: "text-primary/70",
       bannerBgClass: "bg-primary/5",
       glowClass: "shadow-glow",
-      hex: "#00FF94"
+      hex: "#22D3EE"
     };
   }
 
@@ -728,6 +833,9 @@
     if (token.includes("standby") || token.includes("review") || token.includes("warn")) {
       return "text-warning";
     }
+    if (token.includes("pass") || token.includes("success") || token.includes("ready") || token.includes("online") || token.includes("ok")) {
+      return "text-success";
+    }
     return "text-text-muted";
   }
 
@@ -738,6 +846,9 @@
     }
     if (token.includes("warn")) {
       return "text-warning";
+    }
+    if (token.includes("pass") || token.includes("success") || token.includes("ok")) {
+      return "text-success";
     }
     return "text-primary";
   }
