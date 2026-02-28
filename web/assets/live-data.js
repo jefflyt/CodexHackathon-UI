@@ -189,7 +189,7 @@
 
     const storedContext = getStoredScanContext();
     const repoFromDashboard = normalizeRepoName(storedContext.repo || sourceData.repo || targetInput?.value || sourceData.targetInput);
-    applyHeaderScanContext("dashboard-header-repo", "dashboard-session-id", repoFromDashboard, sourceData.sessionId, false);
+    const headerContext = applyHeaderScanContext("dashboard-header-repo", "dashboard-session-id", repoFromDashboard, sourceData.sessionId, false);
     initializeDashboardSourceControls(sourceData, targetInput, repoFromDashboard);
 
     const frameworks = toArray(sourceData.frameworks);
@@ -256,19 +256,32 @@
       }
     }
 
-    const threatFeed = byId("dashboard-threat-feed");
     const threats = toArray(sourceData.threats);
-    if (threatFeed && threats.length > 0) {
-      threatFeed.innerHTML = threats
-        .map((threat) => {
-          const severity = String(threat.severity || "info").toLowerCase();
-          const label = toUpper(threat.label || severity);
-          const className =
-            severity === "critical" ? "text-critical" : severity === "warning" ? "text-warning" : "text-primary";
-          return `<span class="${className}">${escapeHtml(label)}:</span> ${escapeHtml(threat.message || "")}`;
-        })
-        .join(" --- ");
-    }
+    const selectedTarget = toArray(sourceData.targets).find((item) => item && item.selected === true) || toArray(sourceData.targets)[0];
+    const criticalThreat = threats.find((threat) => String(threat?.severity || "").toLowerCase().includes("critical")) || threats[0];
+    const sourceMode = String(storedContext.sourceType || SOURCE_TYPE_LOCAL).toUpperCase();
+    const summaryEntries = Number.isFinite(Number(sourceData.summary?.entries))
+      ? Number(sourceData.summary.entries).toLocaleString("en-US")
+      : "--";
+    const summaryErrors = Number.isFinite(Number(sourceData.summary?.errors))
+      ? Number(sourceData.summary.errors).toLocaleString("en-US")
+      : "--";
+    const summaryWarnings = Number.isFinite(Number(sourceData.summary?.warnings))
+      ? Number(sourceData.summary.warnings).toLocaleString("en-US")
+      : "--";
+
+    setFooterTicker("dashboard-footer-ticker", [
+      { label: "Repo", value: headerContext.repo, tone: "primary" },
+      { label: "Session", value: headerContext.sessionId, tone: "primary" },
+      { label: "Source", value: sourceMode, tone: "primary" },
+      { label: "Target", value: selectedTarget?.name || "N/A", tone: "primary" },
+      { label: "Target Status", value: selectedTarget?.status || "UNKNOWN", tone: inferToneToken(selectedTarget?.status) },
+      { label: "Uplink", value: sourceData.uplinkStatus || "UNKNOWN", tone: inferToneToken(sourceData.uplinkStatus) },
+      { label: "Entries", value: summaryEntries, tone: "primary" },
+      { label: "Errors", value: summaryErrors, tone: Number(summaryErrors) > 0 ? "critical" : "success" },
+      { label: "Warnings", value: summaryWarnings, tone: Number(summaryWarnings) > 0 ? "warning" : "success" },
+      { label: "Alert", value: criticalThreat?.message || "No active critical alerts", tone: inferToneToken(criticalThreat?.severity || "success") }
+    ]);
   }
 
   function initializeDashboardSourceControls(data, targetInput, fallbackRepo) {
@@ -701,6 +714,16 @@
       return;
     }
 
+    const storedContext = getStoredScanContext();
+    const repoFromCodex = normalizeRepoName(data.repo || storedContext.repo || byId("codex-header-repo")?.textContent);
+    const codexHeaderContext = applyHeaderScanContext(
+      "codex-header-repo",
+      "codex-session-id",
+      repoFromCodex,
+      data.sessionId || storedContext.sessionId,
+      false
+    );
+
     const systemStatus = toUpper(data.systemStatus);
     if (systemStatus) {
       setText("codex-system-status", `SYSTEM_STATUS: ${systemStatus}`);
@@ -819,6 +842,24 @@
         .map((section, index) => renderCodexSection(section, index))
         .join("");
     }
+
+    const activeFrameworkCount = activeFrameworks.filter((framework) => framework && framework.active !== false).length;
+    const totalFrameworkCount = activeFrameworks.length;
+    const rulesetStatus = data.activeRuleset?.status || "UNKNOWN";
+    const mandatesCount = Number.isFinite(Number(data.activeRuleset?.mandates))
+      ? String(data.activeRuleset.mandates)
+      : "--";
+
+    setFooterTicker("codex-footer-ticker", [
+      { label: "Repo", value: codexHeaderContext.repo, tone: "primary" },
+      { label: "Session", value: codexHeaderContext.sessionId, tone: "primary" },
+      { label: "Ruleset", value: data.activeRuleset?.title || data.selectedFramework || "N/A", tone: "primary" },
+      { label: "Ruleset Status", value: rulesetStatus, tone: inferToneToken(rulesetStatus) },
+      { label: "Mandates", value: mandatesCount, tone: "primary" },
+      { label: "Frameworks Active", value: `${activeFrameworkCount}/${totalFrameworkCount || "--"}`, tone: "primary" },
+      { label: "Operator", value: data.operator?.name || "N/A", tone: "primary" },
+      { label: "Last Sync", value: data.lastSync || "N/A", tone: "primary" }
+    ]);
   }
 
   function renderScanReport(data) {
@@ -1006,7 +1047,21 @@
     const preferredRepo = isFilled(data.sessionId)
       ? repoFromScanReport
       : normalizeRepoName(storedContext.repo) || repoFromScanReport;
-    applyHeaderScanContext("scan-repo", "scan-session-id", preferredRepo, data.sessionId, false);
+    const scanHeaderContext = applyHeaderScanContext("scan-repo", "scan-session-id", preferredRepo, data.sessionId, false);
+    const passRateTone = roundedPassRate === null ? "primary" : roundedPassRate >= 85 ? "success" : roundedPassRate >= 60 ? "warning" : "critical";
+
+    setFooterTicker("scan-footer-ticker", [
+      { label: "Repo", value: scanHeaderContext.repo, tone: "primary" },
+      { label: "Session", value: scanHeaderContext.sessionId, tone: "primary" },
+      { label: "Report", value: data.reportId || "N/A", tone: "primary" },
+      { label: "Status", value: computedTitle || data.status || "UNKNOWN", tone: inferToneToken(data.severity || computedTitle) },
+      { label: "Pass Rate", value: roundedPassRate !== null ? `${roundedPassRate}%` : "--", tone: passRateTone },
+      { label: "Success", value: Number.isFinite(Number(data.success)) ? String(data.success) : "--", tone: "success" },
+      { label: "Fail", value: String(derivedFailCount), tone: derivedFailCount > 0 ? "critical" : "success" },
+      { label: "Open Mandates", value: String(derivedFailCount), tone: derivedFailCount > 0 ? "warning" : "success" },
+      { label: "Ref", value: data.ref || "N/A", tone: "primary" },
+      { label: "Node", value: data.node || "N/A", tone: "primary" }
+    ]);
   }
 
   function buildScanStatusTitle(data, failedMandates, failCount) {
@@ -1078,7 +1133,7 @@
     }
 
     const updateTimestamp = () => {
-      timestampNode.textContent = formatUtcTimestamp(new Date());
+      timestampNode.textContent = formatLocalTimestamp(new Date());
     };
 
     if (!timestampNode.dataset.liveClockBound) {
@@ -1377,19 +1432,80 @@
     return String(raw).replace(/^\[|\]$/g, "").trim();
   }
 
-  function formatUtcTimestamp(value) {
+  function formatLocalTimestamp(value) {
     const date = value instanceof Date ? value : new Date(value);
     if (Number.isNaN(date.getTime())) {
       return "--";
     }
 
-    const year = date.getUTCFullYear();
-    const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-    const day = String(date.getUTCDate()).padStart(2, "0");
-    const hour = String(date.getUTCHours()).padStart(2, "0");
-    const minute = String(date.getUTCMinutes()).padStart(2, "0");
-    const second = String(date.getUTCSeconds()).padStart(2, "0");
-    return `${year}-${month}-${day} ${hour}:${minute}:${second} UTC`;
+    const year = date.getFullYear();
+    const month = date.toLocaleString("en-US", { month: "short" });
+    const day = String(date.getDate()).padStart(2, "0");
+    const hour = String(date.getHours()).padStart(2, "0");
+    const minute = String(date.getMinutes()).padStart(2, "0");
+    const second = String(date.getSeconds()).padStart(2, "0");
+    const timezone = Intl.DateTimeFormat(undefined, { timeZoneName: "short" })
+      .formatToParts(date)
+      .find((part) => part.type === "timeZoneName")?.value;
+
+    return `${day}-${month}-${year} ${hour}:${minute}:${second}${timezone ? ` ${timezone}` : ""}`;
+  }
+
+  function setFooterTicker(tickerId, items) {
+    const ticker = byId(tickerId);
+    if (!ticker) {
+      return;
+    }
+
+    const normalizedItems = toArray(items).filter((item) => item && isFilled(item.value));
+    if (normalizedItems.length === 0) {
+      return;
+    }
+
+    const groupMarkup = normalizedItems
+      .map((item) => renderFooterTickerItem(item))
+      .join('<span class="footer-ticker-separator">|</span>');
+    ticker.innerHTML = `<div class="footer-ticker-group">${groupMarkup}</div><div class="footer-ticker-group" aria-hidden="true">${groupMarkup}</div>`;
+  }
+
+  function renderFooterTickerItem(item) {
+    return `
+      <span class="footer-ticker-item">
+        <span class="footer-ticker-label">${escapeHtml(item.label || "INFO")}</span>
+        <span class="${resolveFooterToneClass(item.tone || inferToneToken(item.value))}">${escapeHtml(item.value)}</span>
+      </span>
+    `;
+  }
+
+  function resolveFooterToneClass(tone) {
+    const token = String(tone || "").toLowerCase();
+    if (token.includes("critical") || token.includes("fail") || token.includes("error")) {
+      return "text-critical";
+    }
+    if (token.includes("warn") || token.includes("review") || token.includes("high")) {
+      return "text-warning";
+    }
+    if (token.includes("success") || token.includes("pass") || token.includes("ready") || token.includes("online") || token.includes("ok")) {
+      return "text-success";
+    }
+    if (token.includes("primary") || token.includes("info")) {
+      return "text-primary";
+    }
+    return "text-text-main";
+  }
+
+  function inferToneToken(value) {
+    const token = String(value || "").toLowerCase();
+    if (token.includes("critical") || token.includes("fail") || token.includes("error") || token.includes("blocker")) {
+      return "critical";
+    }
+    if (token.includes("warn") || token.includes("review") || token.includes("high") || token.includes("standby")) {
+      return "warning";
+    }
+    if (token.includes("pass") || token.includes("success") || token.includes("ready") || token.includes("online") || token.includes("ok") || token.includes("compliant")) {
+      return "success";
+    }
+    return "primary";
   }
 
   function setText(id, value) {
