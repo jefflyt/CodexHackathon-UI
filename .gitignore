@@ -3,7 +3,6 @@
 Thumbs.db
 node_modules/
 **/node_modules/
-security-scans/skillpacks/
 security-scans/workspaces/
 security-scans/results/
 .env

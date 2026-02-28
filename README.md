@@ -1,6 +1,16 @@
-# Neon Guardian UI
+# AIGO Security Monitor
 
-Frontend-only repository for the Neon Guardian interface.
+![AIGO Security Monitor Intro](web/assets/compliance-avatar.png)
+
+Frontend-only repository for the AIGO Security Monitor interface.
+
+## Project Summary
+
+We built a Codex SDK web app that turns our AI Security Policy operational framework into an agentic repo assessor. It checks AI project code against security mandates, flags unmet controls, maps threat exposure, and uses mandate-specific skills to request/ingest supporting evidence for partially or non-code-evaluable controls.
+
+In the hackathon, we shipped the core scan and evidence flow. Next, we will complete full mandate coverage, strengthen evidence validation, and deliver richer remediation reporting.
+
+
 
 ## Tech Stack
 
