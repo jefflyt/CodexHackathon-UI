@@ -56,11 +56,29 @@
             background: #22D3EE; 
         }
         .bg-grid-pattern {
-            background-size: 20px 20px;
-            background-image: radial-gradient(circle, #24385B 1px, transparent 1px);
+            background-size: 24px 24px;
+            background-image: radial-gradient(#24385B 1px, transparent 1px);
         }
         .border-neon {
             box-shadow: inset 3px 0 0 0 #22D3EE;
+        }
+        .scanline {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(
+                to bottom,
+                rgba(255,255,255,0),
+                rgba(255,255,255,0) 50%,
+                rgba(0,0,0,0.05) 50%,
+                rgba(0,0,0,0.05)
+            );
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 50;
+            opacity: 0.16;
         }
         @keyframes blink {
             0%, 100% { opacity: 1; }
@@ -144,8 +162,9 @@
         }
     </style>
 </head>
-<body class="bg-background-dark text-text-main font-body overflow-hidden h-screen flex" data-page="codex">
+<body class="bg-background-dark bg-grid-pattern text-text-main font-body overflow-hidden h-screen flex" data-page="codex">
 <div class="future-aurora"></div>
+<div class="scanline"></div>
 <aside class="w-64 border-r border-border-dark bg-surface-dark flex flex-col relative z-30">
 <div class="p-6 border-b border-border-dark bg-black/20">
 <h1 class="text-white font-mono font-bold text-lg tracking-tighter mb-1">AIGO Security Monitor</h1>
@@ -154,11 +173,11 @@
 <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
 <span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
 </span>
-<span class="text-primary font-mono text-xs font-bold tracking-widest" id="codex-system-status">SYSTEM_STATUS: ONLINE</span>
+<span class="text-primary font-mono text-xs font-bold tracking-widest" id="codex-system-status">SYSTEM STATUS: ONLINE</span>
 </div>
 <div class="hidden text-[10px] text-text-muted font-mono mt-4 leading-relaxed">
                 UPTIME: <span id="codex-uptime">42:19:03</span><br/>
-                VERSION: <span id="codex-version">2.4.0_STABLE</span>
+                VERSION: <span id="codex-version">2.4.0 STABLE</span>
             </div>
 </div>
 <nav class="flex-1 px-3 py-6 space-y-1">
@@ -178,7 +197,7 @@
 </nav>
 <div class="p-5 border-t border-border-dark bg-black/20">
 <div class="flex items-center justify-between mb-6">
-<h3 class="text-[10px] font-mono font-bold text-text-muted tracking-widest uppercase">ACTIVE_FRAMEWORKS</h3>
+<h3 class="text-[10px] font-mono font-bold text-text-muted tracking-widest uppercase">ACTIVE FRAMEWORKS</h3>
 <span class="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 font-bold font-mono" id="codex-framework-count">04</span>
 </div>
 <div class="space-y-4" id="codex-framework-list">
@@ -219,21 +238,20 @@
             </button>
 </div>
 </aside>
-<main class="flex-1 flex flex-col overflow-hidden relative z-10 bg-background-dark">
-<div class="absolute inset-0 bg-grid-pattern opacity-10 pointer-events-none z-0"></div>
+<main class="flex-1 flex flex-col overflow-hidden relative z-10 bg-background-dark bg-grid-pattern">
 <header class="h-14 border-b border-border-dark bg-background-dark/95 backdrop-blur-sm flex items-center justify-between px-8 shrink-0 z-20">
 <div class="flex items-center gap-4 font-mono text-[10px] tracking-widest uppercase">
 <div class="text-primary font-bold">COMPLIANCE CODEX</div>
 <span class="hidden" id="codex-selected-framework">ALL PILLARS SELECTED</span>
 </div>
 <div class="font-mono text-[10px] text-text-muted uppercase">
-                REPO: <span class="text-text-main" id="codex-header-repo">neural-net-v2-production</span> // SESSION_ID: <span class="text-primary font-bold tracking-wider" id="codex-session-id">PENDING</span>
+                REPO: <span class="text-text-main" id="codex-header-repo">neural-net-v2-production</span> // SESSION ID: <span class="text-primary font-bold tracking-wider" id="codex-session-id">PENDING</span>
 </div>
 </header>
 <div class="flex flex-1 overflow-hidden">
 <aside class="w-64 bg-background-dark/50 border-r border-border-dark hidden xl:flex flex-col z-10 shrink-0 backdrop-blur-sm">
 <div class="p-4 border-b border-border-dark">
-<h3 class="text-xs font-bold text-text-muted tracking-widest mb-1">LIBRARY_INDEX</h3>
+<h3 class="text-xs font-bold text-text-muted tracking-widest mb-1">LIBRARY INDEX</h3>
 </div>
 <div class="flex-1 overflow-y-auto p-2 space-y-1" id="codex-library-list">
 <div class="px-3 py-4 border border-border-dark bg-background-dark text-[10px] text-text-muted font-mono tracking-wide leading-relaxed">
@@ -243,7 +261,7 @@ Select one or more mandate pillars to scope the list.
 <div class="p-4 border-t border-border-dark bg-[#0D1A2E]">
 <div class="flex items-center gap-2 text-xs text-text-muted mb-2">
 <span class="material-symbols-outlined text-[14px]">update</span>
-<span class="font-mono">MANDATE_SYNC</span>
+<span class="font-mono">MANDATE SYNC</span>
 </div>
 <div class="font-mono text-xs text-primary" id="codex-last-sync">SYNCING MANDATES...</div>
 </div>
@@ -253,7 +271,7 @@ Select one or more mandate pillars to scope the list.
 <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
 <div>
 <div class="flex items-center gap-2 text-primary mb-2">
-<span class="px-2 py-0.5 border border-primary text-[10px] font-bold font-mono">VIEW_ONLY_RULESET</span>
+<span class="px-2 py-0.5 border border-primary text-[10px] font-bold font-mono">VIEW ONLY RULESET</span>
 </div>
 <h1 class="text-3xl font-display font-bold text-white tracking-tight mb-2" id="codex-ruleset-title">CORE SECURITY MANDATES</h1>
 <p class="text-text-muted max-w-3xl text-sm leading-relaxed font-mono" id="codex-ruleset-description">
@@ -264,10 +282,10 @@ Select one or more mandate pillars to scope the list.
 <div class="flex gap-2">
 <div class="px-3 py-1 bg-primary/10 border border-primary text-primary text-xs font-bold flex items-center gap-2 font-mono" id="codex-ruleset-status">
 <span class="w-1.5 h-1.5 bg-primary rounded-full animate-pulse"></span>
-                                    STATUS: VIEW_ONLY
+                                    STATUS: VIEW ONLY
                                 </div>
 <div class="px-3 py-1 border border-border-dark text-text-muted text-xs font-bold font-mono" id="codex-mandates-count">
-                                    LOADING_MANDATES...
+                                    LOADING MANDATES...
                                 </div>
 </div>
 </div>
@@ -277,7 +295,7 @@ Select one or more mandate pillars to scope the list.
 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
 <span class="material-symbols-outlined text-text-muted text-lg">search</span>
 </div>
-<input class="block w-full bg-surface-dark border border-border-dark text-white py-2 pl-10 pr-4 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-mono text-sm placeholder-text-muted/50 transition-all" id="codex-filter-input" placeholder="FILTER_MANDATES_OR_RISKS..." type="text"/>
+<input class="block w-full bg-surface-dark border border-border-dark text-white py-2 pl-10 pr-4 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-mono text-sm placeholder-text-muted/50 transition-all" id="codex-filter-input" placeholder="FILTER MANDATES OR RISKS..." type="text"/>
 </div>
 <div class="flex gap-2">
 <button class="px-3 py-2 bg-surface-dark border border-primary text-primary text-xs font-bold font-mono codex-filter-btn" data-filter="all">ALL</button>
@@ -290,7 +308,7 @@ Select one or more mandate pillars to scope the list.
 <div class="flex-1 overflow-y-auto px-8 pb-20 scroll-smooth">
 <div class="max-w-6xl space-y-4" id="codex-mandates-sections">
 <div class="border border-primary/40 bg-primary/5 p-5 font-mono text-xs text-primary">
-                            LOADING_MANDATES...
+                            LOADING MANDATES...
 </div>
 </div>
 </div>
@@ -298,7 +316,7 @@ Select one or more mandate pillars to scope the list.
 </div>
 <footer class="h-8 bg-[#101C34] border-t border-[#24385B] flex items-center overflow-hidden shrink-0">
 <div class="px-4 bg-[#EF4444] text-black font-mono text-[10px] font-bold h-full flex items-center shrink-0">
-                LIVE_STATUS_TICKER
+                LIVE STATUS TICKER
             </div>
 <div class="flex-1 px-3 footer-ticker-viewport">
 <div class="footer-ticker-track" id="codex-footer-ticker">
@@ -659,7 +677,7 @@ ASI10: Rogue Agents`;
                 }).join("");
 
                 libraryListEl.innerHTML = `
-                    <div class="text-[10px] text-text-muted font-mono px-2 py-1 tracking-widest">PILLAR_SCOPE (MULTI_SELECT)</div>
+                    <div class="text-[10px] text-text-muted font-mono px-2 py-1 tracking-widest">PILLAR SCOPE (MULTI SELECT)</div>
                     <div class="space-y-1">${pills}</div>
                 `;
             }
@@ -686,17 +704,17 @@ ASI10: Rogue Agents`;
 
             function levelText(level) {
                 if (level === "critical") {
-                    return "CRITICAL_RISK";
+                    return "CRITICAL RISK";
                 }
                 if (level === "high") {
-                    return "HIGH_RISK";
+                    return "HIGH RISK";
                 }
-                return "MODERATE_RISK";
+                return "MODERATE RISK";
             }
 
             function renderMandates(items, pillarMap) {
                 if (!items.length) {
-                    mandatesContainer.innerHTML = `<div class="border border-critical/40 bg-critical/10 p-5 font-mono text-xs text-critical">NO_MANDATES_FOUND_IN_SELECTED_PILLARS.</div>`;
+                    mandatesContainer.innerHTML = `<div class="border border-critical/40 bg-critical/10 p-5 font-mono text-xs text-critical">NO MANDATES FOUND IN SELECTED PILLARS.</div>`;
                     return;
                 }
 
@@ -742,7 +760,7 @@ ASI10: Rogue Agents`;
                                     </div>
                                     <div class="flex items-center gap-6 pr-2">
                                         <div class="text-right hidden sm:block">
-                                            <div class="text-[10px] text-text-muted font-mono">MANDATE_GROUP</div>
+                                            <div class="text-[10px] text-text-muted font-mono">MANDATE GROUP</div>
                                             <div class="text-xs text-white font-mono">${mandate.group}</div>
                                         </div>
                                         <div class="size-3 rounded-full ${levelStripeClass(mandate.riskLevel)} opacity-90"></div>
@@ -755,7 +773,7 @@ ASI10: Rogue Agents`;
                                             <div class="bg-background-dark border border-border-dark p-3">
                                                 <div class="flex items-center justify-between mb-2 border-b border-border-dark pb-2">
                                                     <span class="text-[10px] text-text-muted font-bold tracking-wider font-mono">MITIGATES</span>
-                                                    <span class="text-[10px] text-primary font-mono font-bold">${mandate.risks.length} RISK_REFERENCES</span>
+                                                    <span class="text-[10px] text-primary font-mono font-bold">${mandate.risks.length} RISK REFERENCES</span>
                                                 </div>
                                                 <ul class="space-y-1">${risksHtml}</ul>
                                             </div>
@@ -766,7 +784,7 @@ ASI10: Rogue Agents`;
                                                 <span class="text-sm text-white font-mono">${mandate.pillar}</span>
                                             </div>
                                             <div>
-                                                <span class="text-[10px] text-text-muted font-bold block mb-1 font-mono">RISK_LEVEL</span>
+                                                <span class="text-[10px] text-text-muted font-bold block mb-1 font-mono">RISK LEVEL</span>
                                                 <span class="text-sm text-white font-mono">${levelText(mandate.riskLevel)}</span>
                                             </div>
                                         </div>
@@ -796,7 +814,7 @@ ASI10: Rogue Agents`;
 
                 renderMandates(scopedMandates, pillars);
                 if (activePillarGroups.size === 0) {
-                    selectedFrameworkEl.textContent = "NO_PILLARS_SELECTED";
+                    selectedFrameworkEl.textContent = "NO PILLARS SELECTED";
                 } else if (activePillarGroups.size === 1) {
                     const group = Array.from(activePillarGroups)[0];
                     const label = pillars[group] || group;
@@ -869,7 +887,7 @@ ASI10: Rogue Agents`;
                 } catch (error) {
                     const fallbackLines = FALLBACK_POLICY_TEXT.split("\n").map(cleanLine).filter(Boolean);
                     parsed = parseFromLines(fallbackLines);
-                    lastSyncEl.textContent = "FALLBACK_SNAPSHOT";
+                    lastSyncEl.textContent = "FALLBACK SNAPSHOT";
                 }
 
                 mandates = parsed.mandates;

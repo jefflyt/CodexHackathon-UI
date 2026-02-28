@@ -1,0 +1,14 @@
+{
+  "name": "codex-hackathon-ui",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Neon Guardian UI + local scan API server",
+  "type": "module",
+  "scripts": {
+    "dev": "node server/dev-server.mjs",
+    "start": "node server/dev-server.mjs"
+  },
+  "dependencies": {
+    "@openai/codex-sdk": "^0.106.0"
+  }
+}

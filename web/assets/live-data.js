@@ -28,8 +28,43 @@
     "scan-report": renderScanReport
   };
   const SCAN_CONTEXT_KEY = "neon_guardian_scan_context_v1";
+  const DASHBOARD_TERMINAL_STATE_KEY = "neon_guardian_dashboard_terminal_state_v1";
   const SOURCE_TYPE_LOCAL = "local";
   const SOURCE_TYPE_GITHUB = "github";
+  const DASHBOARD_TEST_MAX_SKILLS = 5;
+  const LOCAL_SCAN_API_BASE_CANDIDATES = [
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000"
+  ];
+  const DASHBOARD_MAX_LIVE_LOGS = 280;
+  const DASHBOARD_LOG_POLL_INTERVAL_MS = 1200;
+  const dashboardLiveTerminalState = {
+    entries: 0,
+    errors: 0,
+    lastLogId: 0,
+    logs: [],
+    pollHandle: null,
+    restoredFromContext: false,
+    runId: "",
+    sessionId: "",
+    status: "idle",
+    useLiveLogs: false,
+    progress: {
+      elapsedSeconds: 0,
+      etaSeconds: null,
+      failedCount: 0,
+      overallPercent: 0,
+      pendingCount: 0,
+      runningCount: 0,
+      skills: [],
+      skillsTotal: 0,
+      successCount: 0
+    },
+    warnings: 0
+  };
+  hydrateDashboardTerminalStateFromStorage();
 
   initialize().catch(() => {
     // Keep static HTML as fallback if live data fails.
@@ -107,6 +142,62 @@
     return next;
   }
 
+  function getStoredDashboardTerminalState() {
+    try {
+      const raw = window.localStorage.getItem(DASHBOARD_TERMINAL_STATE_KEY);
+      const parsed = raw ? JSON.parse(raw) : null;
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch (_error) {
+      return {};
+    }
+  }
+
+  function storeDashboardTerminalState(nextState) {
+    try {
+      window.localStorage.setItem(DASHBOARD_TERMINAL_STATE_KEY, JSON.stringify(nextState));
+    } catch (_error) {
+      // Ignore storage errors.
+    }
+  }
+
+  function persistDashboardTerminalState() {
+    storeDashboardTerminalState({
+      entries: dashboardLiveTerminalState.entries,
+      errors: dashboardLiveTerminalState.errors,
+      lastLogId: dashboardLiveTerminalState.lastLogId,
+      logs: dashboardLiveTerminalState.logs,
+      progress: dashboardLiveTerminalState.progress,
+      runId: dashboardLiveTerminalState.runId,
+      sessionId: dashboardLiveTerminalState.sessionId,
+      status: dashboardLiveTerminalState.status,
+      updatedAt: new Date().toISOString(),
+      warnings: dashboardLiveTerminalState.warnings
+    });
+  }
+
+  function hydrateDashboardTerminalStateFromStorage() {
+    const stored = getStoredDashboardTerminalState();
+    const storedLogs = toArray(stored.logs).map((item) => normalizeDashboardLogEntry(item)).slice(-DASHBOARD_MAX_LIVE_LOGS);
+
+    if (storedLogs.length > 0) {
+      dashboardLiveTerminalState.logs = storedLogs;
+    }
+
+    const parsedEntries = Number(stored.entries);
+    const parsedErrors = Number(stored.errors);
+    const parsedWarnings = Number(stored.warnings);
+    const parsedLastLogId = Number(stored.lastLogId);
+
+    dashboardLiveTerminalState.entries = Number.isFinite(parsedEntries) ? parsedEntries : dashboardLiveTerminalState.logs.length;
+    dashboardLiveTerminalState.errors = Number.isFinite(parsedErrors) ? parsedErrors : 0;
+    dashboardLiveTerminalState.warnings = Number.isFinite(parsedWarnings) ? parsedWarnings : 0;
+    dashboardLiveTerminalState.lastLogId = Number.isFinite(parsedLastLogId) ? parsedLastLogId : 0;
+    dashboardLiveTerminalState.runId = isFilled(stored.runId) ? String(stored.runId) : "";
+    dashboardLiveTerminalState.sessionId = isFilled(stored.sessionId) ? String(stored.sessionId) : "";
+    dashboardLiveTerminalState.status = isFilled(stored.status) ? String(stored.status) : "idle";
+    dashboardLiveTerminalState.progress = normalizeDashboardProgress(stored.progress);
+  }
+
   function normalizeRepoName(value) {
     if (!isFilled(value)) {
       return "";
@@ -127,6 +218,21 @@
 
   function upsertScanContext(repoCandidate, sessionCandidate, forceNewSession) {
     const context = getStoredScanContext();
+    const activeScanStatus = String(context.activeScanStatus || "").toLowerCase();
+    const hasActiveScanSession = isFilled(context.activeScanSessionId) && (activeScanStatus === "running" || activeScanStatus === "starting");
+    if (!forceNewSession && hasActiveScanSession) {
+      const pinnedRepo = normalizeRepoName(context.activeScanRepo || context.repo || repoCandidate) || "unknown-repo";
+      const pinnedSessionId = String(context.activeScanSessionId);
+      const nextContext = {
+        ...context,
+        repo: pinnedRepo,
+        sessionId: pinnedSessionId,
+        updatedAt: new Date().toISOString()
+      };
+      storeScanContext(nextContext);
+      return nextContext;
+    }
+
     const repo = normalizeRepoName(repoCandidate) || normalizeRepoName(context.repo) || "unknown-repo";
     const repoChanged = normalizeRepoName(context.repo) !== repo;
     const providedSession = isFilled(sessionCandidate) ? String(sessionCandidate) : "";
@@ -157,7 +263,7 @@
 
     const systemStatus = toUpper(sourceData.systemStatus);
     if (systemStatus) {
-      setText("dashboard-system-status", `SYSTEM_STATUS: ${systemStatus}`);
+      setText("dashboard-system-status", `SYSTEM STATUS: ${systemStatus}`);
     }
 
     if (isFilled(sourceData.uplinkStatus)) {
@@ -191,6 +297,8 @@
     const repoFromDashboard = normalizeRepoName(storedContext.repo || sourceData.repo || targetInput?.value || sourceData.targetInput);
     const headerContext = applyHeaderScanContext("dashboard-header-repo", "dashboard-session-id", repoFromDashboard, sourceData.sessionId, false);
     initializeDashboardSourceControls(sourceData, targetInput, repoFromDashboard);
+    initializeDashboardTerminalControls();
+    maybeResumeDashboardScanPolling(storedContext);
 
     const frameworks = toArray(sourceData.frameworks);
     const frameworkList = byId("dashboard-framework-list");
@@ -207,7 +315,7 @@
 
           return `
             <div class="${rowClass}">
-              <span class="${nameClass}">${escapeHtml(framework.name || "UNKNOWN")}</span>
+              <span class="${nameClass}">${escapeHtml(humanizeText(framework.name || "UNKNOWN"))}</span>
               <label class="relative inline-flex items-center cursor-pointer">
                 <input ${enabled ? "checked" : ""} class="sr-only peer" type="checkbox" value=""/>
                 <div class="w-8 h-4 bg-surface peer-focus:outline-none border border-border rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-text-muted after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-primary/20 peer-checked:border-primary peer-checked:after:bg-primary peer-checked:after:border-primary"></div>
@@ -218,56 +326,28 @@
         .join("");
     }
 
-    const logs = toArray(sourceData.logs);
-    const logsList = byId("dashboard-logs-list");
-    if (logsList && logs.length > 0) {
-      logsList.innerHTML = `${logs
-        .map((log, index) => {
-          const levelClass = getLogLevelClass(log.level);
-          const source = toUpper(log.source || "LOG");
-          const time = escapeHtml(normalizeTime(log.time));
-          const message = escapeHtml(log.message || "");
-          const rowPadding = index >= 3 ? " pt-2" : "";
+    renderDashboardLogs(dashboardLiveTerminalState.logs);
 
-          return `
-            <div class="flex gap-4${rowPadding}">
-              <span class="text-text-muted shrink-0">[${time}]</span>
-              <span class="${levelClass}">${source}:</span>
-              <span class="text-text-main">${message}</span>
-            </div>
-          `;
-        })
-        .join("")}
-        <div class="flex gap-4">
-          <span class="text-primary shrink-0">&gt;</span>
-          <span class="text-primary w-2 h-4 bg-primary cursor-blink"></span>
-        </div>`;
-    }
-
-    if (sourceData.summary && typeof sourceData.summary === "object") {
-      if (Number.isFinite(Number(sourceData.summary.entries))) {
-        setText("dashboard-log-entries", `ENTRIES: ${Number(sourceData.summary.entries).toLocaleString("en-US")}`);
-      }
-      if (Number.isFinite(Number(sourceData.summary.errors))) {
-        setText("dashboard-log-errors", `ERRORS: ${Number(sourceData.summary.errors).toLocaleString("en-US")}`);
-      }
-      if (Number.isFinite(Number(sourceData.summary.warnings))) {
-        setText("dashboard-log-warnings", `WARNINGS: ${Number(sourceData.summary.warnings).toLocaleString("en-US")}`);
-      }
-    }
+    const dashboardSummary = {
+      entries: dashboardLiveTerminalState.entries,
+      errors: dashboardLiveTerminalState.errors,
+      warnings: dashboardLiveTerminalState.warnings
+    };
+    applyDashboardSummary(dashboardSummary);
+    renderDashboardSkillProgress(dashboardLiveTerminalState.progress);
 
     const threats = toArray(sourceData.threats);
     const selectedTarget = toArray(sourceData.targets).find((item) => item && item.selected === true) || toArray(sourceData.targets)[0];
     const criticalThreat = threats.find((threat) => String(threat?.severity || "").toLowerCase().includes("critical")) || threats[0];
     const sourceMode = String(storedContext.sourceType || SOURCE_TYPE_LOCAL).toUpperCase();
-    const summaryEntries = Number.isFinite(Number(sourceData.summary?.entries))
-      ? Number(sourceData.summary.entries).toLocaleString("en-US")
+    const summaryEntries = Number.isFinite(Number(dashboardSummary?.entries))
+      ? Number(dashboardSummary.entries).toLocaleString("en-US")
       : "--";
-    const summaryErrors = Number.isFinite(Number(sourceData.summary?.errors))
-      ? Number(sourceData.summary.errors).toLocaleString("en-US")
+    const summaryErrors = Number.isFinite(Number(dashboardSummary?.errors))
+      ? Number(dashboardSummary.errors).toLocaleString("en-US")
       : "--";
-    const summaryWarnings = Number.isFinite(Number(sourceData.summary?.warnings))
-      ? Number(sourceData.summary.warnings).toLocaleString("en-US")
+    const summaryWarnings = Number.isFinite(Number(dashboardSummary?.warnings))
+      ? Number(dashboardSummary.warnings).toLocaleString("en-US")
       : "--";
 
     setFooterTicker("dashboard-footer-ticker", [
@@ -284,6 +364,591 @@
     ]);
   }
 
+  function maybeResumeDashboardScanPolling(storedContext) {
+    if (dashboardLiveTerminalState.restoredFromContext) {
+      return;
+    }
+    dashboardLiveTerminalState.restoredFromContext = true;
+
+    const activeSessionId = firstFilled(storedContext?.activeScanSessionId);
+    const activeStatus = String(storedContext?.activeScanStatus || "").toLowerCase();
+    if (!isFilled(activeSessionId)) {
+      return;
+    }
+
+    dashboardLiveTerminalState.sessionId = activeSessionId;
+    dashboardLiveTerminalState.status = activeStatus || dashboardLiveTerminalState.status;
+    persistDashboardTerminalState();
+    syncDashboardTerminalControlState();
+
+    if (activeStatus !== "running" && activeStatus !== "starting" && activeStatus !== "canceling") {
+      return;
+    }
+
+    startDashboardScanLogPolling(activeSessionId, false);
+  }
+
+  function isDashboardScanActiveStatus(value) {
+    const status = String(value || "").toLowerCase();
+    return status === "starting" || status === "running" || status === "canceling";
+  }
+
+  function resolveDashboardSessionId() {
+    const storedContext = getStoredScanContext();
+    const headerSessionId = String(byId("dashboard-session-id")?.textContent || "").trim();
+    return firstFilled(
+      dashboardLiveTerminalState.sessionId,
+      storedContext.activeScanSessionId,
+      storedContext.sessionId,
+      headerSessionId
+    );
+  }
+
+  function syncDashboardTerminalControlState() {
+    const refreshButton = byId("dashboard-refresh-terminal");
+    if (refreshButton) {
+      const isRefreshing = refreshButton.dataset.refreshInFlight === "1";
+      refreshButton.disabled = isRefreshing;
+      refreshButton.classList.toggle("opacity-50", isRefreshing);
+      refreshButton.classList.toggle("cursor-not-allowed", isRefreshing);
+    }
+
+    const killButton = byId("dashboard-kill-scan");
+    if (killButton) {
+      const killInFlight = killButton.dataset.killInFlight === "1";
+      const storedContext = getStoredScanContext();
+      const activeSessionId = firstFilled(dashboardLiveTerminalState.sessionId, storedContext.activeScanSessionId);
+      const activeStatus = firstFilled(dashboardLiveTerminalState.status, storedContext.activeScanStatus);
+      const canStop = !killInFlight && isFilled(activeSessionId) && isDashboardScanActiveStatus(activeStatus);
+      killButton.disabled = !canStop;
+      killButton.classList.toggle("opacity-50", !canStop);
+      killButton.classList.toggle("cursor-not-allowed", !canStop);
+    }
+  }
+
+  function clearDashboardTerminalForNewTarget(nextSessionId) {
+    const clearedSessionId = String(nextSessionId || "").trim();
+    if (dashboardLiveTerminalState.pollHandle) {
+      window.clearInterval(dashboardLiveTerminalState.pollHandle);
+      dashboardLiveTerminalState.pollHandle = null;
+    }
+    dashboardLiveTerminalState.sessionId = clearedSessionId;
+    dashboardLiveTerminalState.runId = "";
+    dashboardLiveTerminalState.status = "idle";
+    dashboardLiveTerminalState.lastLogId = 0;
+    dashboardLiveTerminalState.logs = [];
+    dashboardLiveTerminalState.entries = 0;
+    dashboardLiveTerminalState.errors = 0;
+    dashboardLiveTerminalState.warnings = 0;
+    dashboardLiveTerminalState.progress = normalizeDashboardProgress(null);
+    renderDashboardLogs([]);
+    applyDashboardSummary({ entries: 0, errors: 0, warnings: 0 });
+    renderDashboardSkillProgress(normalizeDashboardProgress(null));
+    persistDashboardTerminalState();
+    mergeScanContext({
+      activeScanRunId: "",
+      activeScanSessionId: "",
+      activeScanStatus: "idle"
+    });
+    syncDashboardTerminalControlState();
+  }
+
+  function appendDashboardLocalLog(level, source, message) {
+    if (!isFilled(message)) {
+      return;
+    }
+    dashboardLiveTerminalState.logs = [
+      ...dashboardLiveTerminalState.logs,
+      normalizeDashboardLogEntry({
+        id: null,
+        level: firstFilled(level, "info"),
+        message: String(message),
+        source: firstFilled(source, "SYSTEM"),
+        time: nowDashboardTime()
+      })
+    ].slice(-DASHBOARD_MAX_LIVE_LOGS);
+    renderDashboardLogs(dashboardLiveTerminalState.logs);
+    persistDashboardTerminalState();
+  }
+
+  async function refreshDashboardLiveTerminal(options = {}) {
+    const forceFullSnapshot = options && options.forceFullSnapshot === true;
+    const activeSessionId = resolveDashboardSessionId();
+    if (isFilled(activeSessionId)) {
+      try {
+        await pollDashboardScanLogs(activeSessionId, { forceFullSnapshot });
+      } catch (_error) {
+        // Keep existing logs if refresh fails.
+      }
+    }
+
+    renderDashboardLogs(dashboardLiveTerminalState.logs);
+    applyDashboardSummary({
+      entries: dashboardLiveTerminalState.entries,
+      errors: dashboardLiveTerminalState.errors,
+      warnings: dashboardLiveTerminalState.warnings
+    });
+    renderDashboardSkillProgress(dashboardLiveTerminalState.progress);
+    persistDashboardTerminalState();
+    syncDashboardTerminalControlState();
+  }
+
+  function initializeDashboardTerminalControls() {
+    const refreshButton = byId("dashboard-refresh-terminal");
+    if (refreshButton && refreshButton.dataset.boundTerminalRefresh !== "1") {
+      refreshButton.dataset.boundTerminalRefresh = "1";
+      refreshButton.addEventListener("click", async () => {
+        if (refreshButton.dataset.refreshInFlight === "1") {
+          return;
+        }
+
+        refreshButton.dataset.refreshInFlight = "1";
+        syncDashboardTerminalControlState();
+        try {
+          await refreshDashboardLiveTerminal({ forceFullSnapshot: true });
+          setDashboardSourceStatus("Live terminal refreshed.", "info");
+        } finally {
+          refreshButton.dataset.refreshInFlight = "0";
+          syncDashboardTerminalControlState();
+        }
+      });
+    }
+
+    const killButton = byId("dashboard-kill-scan");
+    if (killButton && killButton.dataset.boundKillScan !== "1") {
+      killButton.dataset.boundKillScan = "1";
+      killButton.addEventListener("click", async () => {
+        if (killButton.dataset.killInFlight === "1") {
+          return;
+        }
+
+        const activeSessionId = resolveDashboardSessionId();
+        if (!isFilled(activeSessionId)) {
+          setDashboardSourceStatus("No active scan session to stop.", "error");
+          syncDashboardTerminalControlState();
+          return;
+        }
+
+        killButton.dataset.killInFlight = "1";
+        syncDashboardTerminalControlState();
+        setDashboardSourceStatus(`Sending stop signal for session ${activeSessionId}...`, "info");
+        appendDashboardLocalLog("warning", "SYSTEM", `Operator requested scan termination for session ${activeSessionId}.`);
+
+        try {
+          const stopped = await dispatchDashboardScanStop({
+            runId: dashboardLiveTerminalState.runId,
+            sessionId: activeSessionId
+          });
+          const nextStatus = String(stopped?.status || "canceled").toLowerCase();
+          dashboardLiveTerminalState.status = nextStatus;
+          dashboardLiveTerminalState.sessionId = firstFilled(stopped?.sessionId, activeSessionId);
+          if (isFilled(stopped?.runId)) {
+            dashboardLiveTerminalState.runId = String(stopped.runId);
+          }
+          persistDashboardTerminalState();
+
+          mergeScanContext({
+            activeScanRunId: dashboardLiveTerminalState.runId,
+            activeScanSessionId: dashboardLiveTerminalState.sessionId,
+            activeScanStatus: nextStatus
+          });
+
+          if (!isDashboardScanActiveStatus(nextStatus) && dashboardLiveTerminalState.pollHandle) {
+            window.clearInterval(dashboardLiveTerminalState.pollHandle);
+            dashboardLiveTerminalState.pollHandle = null;
+          }
+
+          await refreshDashboardLiveTerminal({ forceFullSnapshot: true });
+
+          if (nextStatus === "canceled" || nextStatus === "stopped") {
+            appendDashboardLocalLog("warning", "SYSTEM", `Scan session ${dashboardLiveTerminalState.sessionId} terminated by operator.`);
+            setDashboardSourceStatus("Scan terminated. Live terminal stopped.", "success");
+          } else {
+            appendDashboardLocalLog("info", "SYSTEM", `Stop signal accepted. Session ${dashboardLiveTerminalState.sessionId} is ${nextStatus || "canceling"}.`);
+            setDashboardSourceStatus("Stop signal sent. Waiting for scan shutdown...", "info");
+          }
+        } catch (error) {
+          const message =
+            error instanceof Error && isFilled(error.message)
+              ? error.message
+              : "Unable to stop current scan session.";
+          appendDashboardLocalLog("error", "ALERT", `Scan stop failed: ${message}`);
+          setDashboardSourceStatus(message, "error");
+        } finally {
+          killButton.dataset.killInFlight = "0";
+          syncDashboardTerminalControlState();
+        }
+      });
+    }
+
+    syncDashboardTerminalControlState();
+  }
+
+  function normalizeDashboardLogEntry(rawLog) {
+    return {
+      id: Number(rawLog?.id),
+      level: isFilled(rawLog?.level) ? String(rawLog.level).toLowerCase() : "info",
+      message: isFilled(rawLog?.message) ? String(rawLog.message) : "",
+      source: isFilled(rawLog?.source) ? String(rawLog.source).toUpperCase() : "LOGS",
+      time: normalizeTime(rawLog?.time || nowDashboardTime())
+    };
+  }
+
+  function normalizeDashboardProgress(rawProgress) {
+    const progress = rawProgress && typeof rawProgress === "object" ? rawProgress : {};
+    const normalizedSkills = toArray(progress.skills)
+      .map((item) => {
+        if (!item || typeof item !== "object") {
+          return null;
+        }
+        return {
+          name: isFilled(item.name) ? String(item.name) : "unknown-skill",
+          status: isFilled(item.status) ? String(item.status).toLowerCase() : "pending",
+          progressPercent: Math.max(0, Math.min(100, Number(item.progressPercent) || 0)),
+          error: isFilled(item.error) ? String(item.error) : ""
+        };
+      })
+      .filter(Boolean);
+
+    return {
+      elapsedSeconds: Math.max(0, Number(progress.elapsedSeconds) || 0),
+      etaSeconds: Number.isFinite(Number(progress.etaSeconds)) ? Math.max(0, Number(progress.etaSeconds)) : null,
+      failedCount: Math.max(0, Number(progress.failedCount) || 0),
+      overallPercent: Math.max(0, Math.min(100, Number(progress.overallPercent) || 0)),
+      pendingCount: Math.max(0, Number(progress.pendingCount) || 0),
+      runningCount: Math.max(0, Number(progress.runningCount) || 0),
+      skills: normalizedSkills,
+      skillsTotal: Math.max(0, Number(progress.skillsTotal) || normalizedSkills.length),
+      successCount: Math.max(0, Number(progress.successCount) || 0)
+    };
+  }
+
+  function renderDashboardSkillProgress(progressInput) {
+    const progress = normalizeDashboardProgress(progressInput);
+    const summary = byId("dashboard-scan-progress-summary");
+    const eta = byId("dashboard-scan-progress-eta");
+    const overallBar = byId("dashboard-scan-overall-progress");
+    const skillsRoot = byId("dashboard-skill-progress-list");
+    if (!summary || !eta || !overallBar || !skillsRoot) {
+      return;
+    }
+
+    const completed = progress.successCount + progress.failedCount;
+    const total = progress.skillsTotal;
+    summary.textContent = `Skill Progress: ${completed}/${total} complete`;
+    overallBar.style.width = `${progress.overallPercent}%`;
+
+    if (progress.etaSeconds === null) {
+      eta.textContent = progress.runningCount > 0 ? "ETA: calibrating..." : "ETA: --";
+    } else {
+      eta.textContent = `ETA: ${formatDurationToken(progress.etaSeconds)}`;
+    }
+
+    if (progress.skills.length === 0) {
+      skillsRoot.innerHTML = '<div class="font-mono text-[10px] uppercase tracking-[0.16em] text-text-muted">No active skill progress yet.</div>';
+      return;
+    }
+
+    skillsRoot.innerHTML = progress.skills
+      .map((skill) => {
+        const status = String(skill.status || "pending").toLowerCase();
+        const isRunning = status === "running";
+        const fillClass = status === "success"
+          ? "bg-success"
+          : status === "failed"
+            ? "bg-critical"
+            : isRunning
+              ? "bg-warning"
+              : "bg-border";
+        const statusClass = status === "success"
+          ? "text-success"
+          : status === "failed"
+            ? "text-critical"
+            : isRunning
+              ? "text-warning"
+              : "text-text-muted";
+
+        const displayStatus = status.toUpperCase();
+        const errorSuffix = status === "failed" && isFilled(skill.error) ? ` :: ${escapeHtml(humanizeText(skill.error))}` : "";
+
+        return `
+          <div class="space-y-1 border border-border bg-black/30 px-2 py-1.5">
+            <div class="flex items-center justify-between gap-2 font-mono text-[10px] uppercase tracking-[0.08em]">
+              <span class="text-text-main truncate">${escapeHtml(humanizeText(skill.name))}</span>
+              <span class="${statusClass}">${escapeHtml(displayStatus)}</span>
+            </div>
+            <div class="w-full h-1.5 bg-surface border border-border overflow-hidden">
+              <div class="h-full ${fillClass} ${isRunning ? "animate-pulse" : ""}" style="width: ${Math.max(0, Math.min(100, Number(skill.progressPercent) || 0))}%"></div>
+            </div>
+            ${
+              errorSuffix
+                ? `<div class="font-mono text-[9px] text-critical truncate">${errorSuffix}</div>`
+                : ""
+            }
+          </div>
+        `;
+      })
+      .join("");
+  }
+
+  function formatDurationToken(secondsInput) {
+    const totalSeconds = Math.max(0, Math.round(Number(secondsInput) || 0));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    if (hours > 0) {
+      return `${hours}h ${String(minutes).padStart(2, "0")}m`;
+    }
+    if (minutes > 0) {
+      return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+    }
+    return `${seconds}s`;
+  }
+
+  function renderDashboardLogs(rawLogs) {
+    const logsList = byId("dashboard-logs-list");
+    const scrollRoot = byId("dashboard-terminal-scroll");
+    if (!logsList) {
+      return;
+    }
+
+    const previousScrollTop = scrollRoot ? scrollRoot.scrollTop : 0;
+    const wasNearBottom = scrollRoot
+      ? scrollRoot.scrollHeight - (scrollRoot.scrollTop + scrollRoot.clientHeight) <= 36
+      : false;
+
+    const logs = toArray(rawLogs).map((item) => normalizeDashboardLogEntry(item));
+    if (logs.length === 0) {
+      logsList.innerHTML = `<div class="flex gap-4">
+        <span class="text-primary shrink-0">&gt;</span>
+        <span class="text-primary w-2 h-4 bg-primary cursor-blink"></span>
+      </div>`;
+      if (scrollRoot) {
+        scrollRoot.scrollTop = 0;
+      }
+      return;
+    }
+
+    logsList.innerHTML = `${logs
+      .map((log, index) => {
+        const levelClass = getLogLevelClass(log.level);
+        const rowPadding = index >= 3 ? " pt-2" : "";
+
+        return `
+          <div class="flex gap-4${rowPadding}">
+            <span class="text-text-muted shrink-0">[${escapeHtml(log.time)}]</span>
+            <span class="${levelClass}">${escapeHtml(log.source)}:</span>
+            <span class="text-text-main">${escapeHtml(humanizeText(log.message || ""))}</span>
+          </div>
+        `;
+      })
+      .join("")}
+      <div class="flex gap-4">
+        <span class="text-primary shrink-0">&gt;</span>
+        <span class="text-primary w-2 h-4 bg-primary cursor-blink"></span>
+      </div>`;
+
+    if (scrollRoot) {
+      if (wasNearBottom) {
+        scrollRoot.scrollTop = scrollRoot.scrollHeight;
+      } else {
+        scrollRoot.scrollTop = previousScrollTop;
+      }
+    }
+  }
+
+  function applyDashboardSummary(summary) {
+    if (!summary || typeof summary !== "object") {
+      return;
+    }
+
+    if (Number.isFinite(Number(summary.entries))) {
+      setText("dashboard-log-entries", `ENTRIES: ${Number(summary.entries).toLocaleString("en-US")}`);
+    }
+    if (Number.isFinite(Number(summary.errors))) {
+      setText("dashboard-log-errors", `ERRORS: ${Number(summary.errors).toLocaleString("en-US")}`);
+    }
+    if (Number.isFinite(Number(summary.warnings))) {
+      setText("dashboard-log-warnings", `WARNINGS: ${Number(summary.warnings).toLocaleString("en-US")}`);
+    }
+  }
+
+  function resetDashboardLiveTerminalState(sessionId) {
+    if (dashboardLiveTerminalState.pollHandle) {
+      window.clearInterval(dashboardLiveTerminalState.pollHandle);
+      dashboardLiveTerminalState.pollHandle = null;
+    }
+    dashboardLiveTerminalState.sessionId = String(sessionId || "");
+    dashboardLiveTerminalState.runId = "";
+    dashboardLiveTerminalState.status = "starting";
+    dashboardLiveTerminalState.lastLogId = 0;
+    dashboardLiveTerminalState.logs = [];
+    dashboardLiveTerminalState.entries = 0;
+    dashboardLiveTerminalState.errors = 0;
+    dashboardLiveTerminalState.warnings = 0;
+    dashboardLiveTerminalState.useLiveLogs = true;
+    dashboardLiveTerminalState.progress = normalizeDashboardProgress(null);
+    persistDashboardTerminalState();
+    syncDashboardTerminalControlState();
+  }
+
+  async function pollDashboardScanLogs(sessionId, options = {}) {
+    if (!isFilled(sessionId)) {
+      return;
+    }
+    const forceFullSnapshot = options && options.forceFullSnapshot === true;
+
+    const endpointCandidates = [
+      window.NEON_SCAN_ENDPOINTS?.logs,
+      window.NEON_DATA_ENDPOINTS?.scanLogs,
+      "/api/scan/logs",
+      ...LOCAL_SCAN_API_BASE_CANDIDATES.map((baseUrl) => `${baseUrl}/api/scan/logs`)
+    ];
+    const endpoint = [...new Set(endpointCandidates.filter(Boolean))][0];
+    if (!endpoint) {
+      return;
+    }
+
+    const separator = endpoint.includes("?") ? "&" : "?";
+    const sinceToken = forceFullSnapshot ? 0 : dashboardLiveTerminalState.lastLogId;
+    const url = `${endpoint}${separator}sessionId=${encodeURIComponent(sessionId)}&since=${sinceToken}`;
+
+    const response = await fetch(url, {
+      cache: "no-store",
+      headers: {
+        Accept: "application/json"
+      }
+    });
+
+    if (!response.ok) {
+      return;
+    }
+
+    const payload = await response.json();
+    const incomingLogs = toArray(payload?.logs).map((item) => normalizeDashboardLogEntry(item));
+    if (forceFullSnapshot) {
+      dashboardLiveTerminalState.logs = incomingLogs.slice(-DASHBOARD_MAX_LIVE_LOGS);
+      dashboardLiveTerminalState.lastLogId = 0;
+      const lastEntry = dashboardLiveTerminalState.logs[dashboardLiveTerminalState.logs.length - 1];
+      if (Number.isFinite(Number(lastEntry.id))) {
+        dashboardLiveTerminalState.lastLogId = Number(lastEntry.id);
+      }
+      renderDashboardLogs(dashboardLiveTerminalState.logs);
+    } else if (incomingLogs.length > 0) {
+      dashboardLiveTerminalState.logs = [...dashboardLiveTerminalState.logs, ...incomingLogs].slice(-DASHBOARD_MAX_LIVE_LOGS);
+      const lastEntry = incomingLogs[incomingLogs.length - 1];
+      if (Number.isFinite(Number(lastEntry.id))) {
+        dashboardLiveTerminalState.lastLogId = Number(lastEntry.id);
+      }
+      renderDashboardLogs(dashboardLiveTerminalState.logs);
+    }
+
+    if (payload?.summary && typeof payload.summary === "object") {
+      const entries = Number(payload.summary.entries);
+      const errors = Number(payload.summary.errors);
+      const warnings = Number(payload.summary.warnings);
+      if (Number.isFinite(entries)) {
+        dashboardLiveTerminalState.entries = entries;
+      }
+      if (Number.isFinite(errors)) {
+        dashboardLiveTerminalState.errors = errors;
+      }
+      if (Number.isFinite(warnings)) {
+        dashboardLiveTerminalState.warnings = warnings;
+      }
+      applyDashboardSummary(payload.summary);
+    }
+
+    if (payload?.progress && typeof payload.progress === "object") {
+      dashboardLiveTerminalState.progress = normalizeDashboardProgress(payload.progress);
+      renderDashboardSkillProgress(dashboardLiveTerminalState.progress);
+    }
+
+    if (isFilled(payload?.runId)) {
+      dashboardLiveTerminalState.runId = String(payload.runId);
+    }
+
+    const status = String(payload?.status || "").toLowerCase();
+    if (isFilled(status)) {
+      dashboardLiveTerminalState.status = status;
+    }
+
+    if (status === "completed" || status === "failed" || status === "canceled" || status === "stopped") {
+      if (dashboardLiveTerminalState.pollHandle) {
+        window.clearInterval(dashboardLiveTerminalState.pollHandle);
+        dashboardLiveTerminalState.pollHandle = null;
+      }
+
+      mergeScanContext({
+        activeScanSessionId: sessionId,
+        activeScanStatus: status,
+        activeScanRepo: firstFilled(getStoredScanContext().activeScanRepo, getStoredScanContext().repo),
+        activeScanRunId: dashboardLiveTerminalState.runId
+      });
+
+      if (status === "completed") {
+        setDashboardSourceStatus("Scan completed. Review logs and generated report artifacts.", "success");
+      } else if (status === "failed") {
+        const errorMessage = isFilled(payload?.error) ? String(payload.error) : "Scan failed. Inspect terminal logs for details.";
+        setDashboardSourceStatus(errorMessage, "error");
+      } else if (status === "canceled" || status === "stopped") {
+        setDashboardSourceStatus("Scan terminated by operator.", "success");
+      }
+    } else {
+      mergeScanContext({
+        activeScanSessionId: sessionId,
+        activeScanStatus: status || "running",
+        activeScanRepo: firstFilled(getStoredScanContext().activeScanRepo, getStoredScanContext().repo),
+        activeScanRunId: dashboardLiveTerminalState.runId
+      });
+    }
+
+    persistDashboardTerminalState();
+    syncDashboardTerminalControlState();
+  }
+
+  function startDashboardScanLogPolling(sessionId, resetState = true) {
+    const normalizedSessionId = String(sessionId || "").trim();
+    if (!isFilled(normalizedSessionId)) {
+      return;
+    }
+
+    if (resetState || dashboardLiveTerminalState.sessionId !== normalizedSessionId) {
+      resetDashboardLiveTerminalState(normalizedSessionId);
+      renderDashboardLogs([]);
+      applyDashboardSummary({ entries: 0, errors: 0, warnings: 0 });
+      renderDashboardSkillProgress(normalizeDashboardProgress(null));
+      dashboardLiveTerminalState.entries = 0;
+      persistDashboardTerminalState();
+    }
+
+    if (dashboardLiveTerminalState.pollHandle) {
+      window.clearInterval(dashboardLiveTerminalState.pollHandle);
+      dashboardLiveTerminalState.pollHandle = null;
+    }
+
+    const poll = async () => {
+      try {
+        await pollDashboardScanLogs(normalizedSessionId);
+      } catch (_error) {
+        // Keep polling even if a request fails intermittently.
+      }
+    };
+
+    poll();
+    dashboardLiveTerminalState.pollHandle = window.setInterval(poll, DASHBOARD_LOG_POLL_INTERVAL_MS);
+    syncDashboardTerminalControlState();
+  }
+
+  function nowDashboardTime() {
+    const now = new Date();
+    const hour = String(now.getHours()).padStart(2, "0");
+    const minute = String(now.getMinutes()).padStart(2, "0");
+    const second = String(now.getSeconds()).padStart(2, "0");
+    return `${hour}:${minute}:${second}`;
+  }
+
   function initializeDashboardSourceControls(data, targetInput, fallbackRepo) {
     const localButton = byId("dashboard-source-local");
     const githubButton = byId("dashboard-source-github");
@@ -297,6 +962,8 @@
     if (!localButton || !githubButton || !localPanel || !githubPanel || !executeScanButton) {
       return;
     }
+
+    initializeDashboardTerminalControls();
 
     const setActiveSourceMode = (nextSourceType, persist) => {
       const activeSourceType = nextSourceType === SOURCE_TYPE_GITHUB ? SOURCE_TYPE_GITHUB : SOURCE_TYPE_LOCAL;
@@ -335,12 +1002,13 @@
 
       const modeText =
         activeSourceType === SOURCE_TYPE_GITHUB
-          ? "GitHub mode active. Repository will be cloned to temporary folder before scan."
+          ? "GitHub mode active. Enter a GitHub repo URL to scan."
           : "Local mode active. Select a local folder to scan.";
       setDashboardSourceStatus(modeText, "info");
     };
 
     if (localButton.dataset.boundSourceControls === "1") {
+      syncDashboardTerminalControlState();
       return;
     }
     localButton.dataset.boundSourceControls = "1";
@@ -389,14 +1057,17 @@
         }
 
         const folderRepo = normalizeRepoName(getPathBasename(localPath) || fallbackRepo || data.targetInput);
-        applyHeaderScanContext("dashboard-header-repo", "dashboard-session-id", folderRepo, "", false);
+        const headerContext = applyHeaderScanContext("dashboard-header-repo", "dashboard-session-id", folderRepo, "", true);
         mergeScanContext({
+          ...headerContext,
           sourceType: SOURCE_TYPE_LOCAL,
           localPath,
           scanTargetPath: localPath
         });
+        clearDashboardTerminalForNewTarget(headerContext.sessionId);
         setActiveSourceMode(SOURCE_TYPE_LOCAL, false);
         setDashboardSourceStatus(`Local folder selected: ${localPath}`, "success");
+        refreshDashboardLiveTerminal({ forceFullSnapshot: true });
       });
     }
 
@@ -415,8 +1086,14 @@
         }
 
         const repoFromUrl = extractRepoNameFromGitHubUrl(githubUrl);
-        if (isFilled(repoFromUrl)) {
-          applyHeaderScanContext("dashboard-header-repo", "dashboard-session-id", repoFromUrl, "", false);
+        if (isFilled(repoFromUrl) && localButton.dataset.sourceType === SOURCE_TYPE_GITHUB) {
+          const headerContext = applyHeaderScanContext("dashboard-header-repo", "dashboard-session-id", repoFromUrl, "", true);
+          mergeScanContext({
+            ...headerContext,
+            scanTargetPath: githubUrl
+          });
+          clearDashboardTerminalForNewTarget(headerContext.sessionId);
+          refreshDashboardLiveTerminal({ forceFullSnapshot: true });
         }
       });
     }
@@ -430,12 +1107,15 @@
         localButton.dataset.sourceType === SOURCE_TYPE_GITHUB ? SOURCE_TYPE_GITHUB : SOURCE_TYPE_LOCAL;
       const localPath = String(localPathInput?.value || "").trim();
       const githubUrl = String(githubUrlInput?.value || "").trim();
+      const customerTargetInput = String(targetInput?.value || "").trim();
+      const requestedTargetInput = firstFilled(customerTargetInput, selectedSourceType === SOURCE_TYPE_GITHUB ? githubUrl : localPath);
+      const effectiveSourceType = isGitHubRepoUrl(requestedTargetInput) ? SOURCE_TYPE_GITHUB : selectedSourceType;
 
-      if (selectedSourceType === SOURCE_TYPE_LOCAL && !isFilled(localPath)) {
-        setDashboardSourceStatus("Select a local folder before running scan.", "error");
+      if (effectiveSourceType === SOURCE_TYPE_LOCAL && !isFilled(requestedTargetInput)) {
+        setDashboardSourceStatus("Enter the target repository/folder in the top input before running scan.", "error");
         return;
       }
-      if (selectedSourceType === SOURCE_TYPE_GITHUB && !isGitHubRepoUrl(githubUrl)) {
+      if (effectiveSourceType === SOURCE_TYPE_GITHUB && !isGitHubRepoUrl(requestedTargetInput)) {
         setDashboardSourceStatus("Enter a valid GitHub repository URL before running scan.", "error");
         return;
       }
@@ -443,17 +1123,19 @@
       executeScanButton.dataset.scanInProgress = "1";
       executeScanButton.disabled = true;
       executeScanButton.classList.add("opacity-70", "cursor-not-allowed");
+      syncDashboardTerminalControlState();
 
       try {
         const preparingMessage =
-          selectedSourceType === SOURCE_TYPE_GITHUB
-            ? "Cloning GitHub repository to temporary folder..."
-            : "Preparing local folder for scan...";
+          effectiveSourceType === SOURCE_TYPE_GITHUB
+            ? "Resolving GitHub repository target from customer input..."
+            : "Resolving local scan target from customer input...";
         setDashboardSourceStatus(preparingMessage, "info");
 
-        const prepared = await prepareDashboardScanSource(selectedSourceType, {
+        const prepared = await prepareDashboardScanSource(effectiveSourceType, {
           localPath,
-          githubUrl
+          githubUrl,
+          targetInput: requestedTargetInput
         });
         const resolvedScanPath = String(prepared.scanPath || "").trim();
         if (!isFilled(resolvedScanPath)) {
@@ -475,26 +1157,39 @@
         );
 
         const headerContext = applyHeaderScanContext("dashboard-header-repo", "dashboard-session-id", resolvedRepo, "", true);
+        clearDashboardTerminalForNewTarget(headerContext.sessionId);
         mergeScanContext({
           ...headerContext,
-          sourceType: selectedSourceType,
-          githubUrl: selectedSourceType === SOURCE_TYPE_GITHUB ? githubUrl : "",
-          localPath: selectedSourceType === SOURCE_TYPE_LOCAL ? resolvedScanPath : localPath,
+          sourceType: effectiveSourceType,
+          githubUrl: effectiveSourceType === SOURCE_TYPE_GITHUB ? firstFilled(githubUrl, customerTargetInput) : "",
+          localPath: effectiveSourceType === SOURCE_TYPE_LOCAL ? resolvedScanPath : localPath,
           scanTargetPath: resolvedScanPath
         });
 
         const scanStarted = await dispatchDashboardScanStart({
           sessionId: headerContext.sessionId,
           repo: headerContext.repo,
-          sourceType: selectedSourceType,
+          sourceType: effectiveSourceType,
           scanPath: resolvedScanPath,
-          githubUrl: selectedSourceType === SOURCE_TYPE_GITHUB ? githubUrl : ""
+          githubUrl: effectiveSourceType === SOURCE_TYPE_GITHUB ? firstFilled(requestedTargetInput, githubUrl) : "",
+          scanTargetInput: requestedTargetInput,
+          maxSkills: DASHBOARD_TEST_MAX_SKILLS
         });
 
-        const completionMessage = scanStarted
-          ? `Scan started for ${resolvedScanPath}`
-          : `Scan target ready: ${resolvedScanPath}`;
-        setDashboardSourceStatus(completionMessage, "success");
+        const liveSessionId = firstFilled(scanStarted.sessionId, headerContext.sessionId);
+        startDashboardScanLogPolling(liveSessionId, true);
+        mergeScanContext({
+          activeScanSessionId: liveSessionId,
+          activeScanStatus: "running",
+          activeScanRepo: resolvedRepo,
+          activeScanTargetInput: requestedTargetInput,
+          activeScanRunId: firstFilled(scanStarted.runId)
+        });
+
+        setDashboardSourceStatus(
+          `Scan started for ${resolvedScanPath}. Streaming live terminal output... (test cap: ${DASHBOARD_TEST_MAX_SKILLS} skills)`,
+          "success"
+        );
       } catch (error) {
         const failureMessage =
           error instanceof Error && isFilled(error.message)
@@ -505,24 +1200,27 @@
         executeScanButton.dataset.scanInProgress = "0";
         executeScanButton.disabled = false;
         executeScanButton.classList.remove("opacity-70", "cursor-not-allowed");
+        syncDashboardTerminalControlState();
       }
     });
 
     setActiveSourceMode(initialSourceType, false);
+    syncDashboardTerminalControlState();
   }
 
   async function prepareDashboardScanSource(sourceType, input) {
     if (sourceType === SOURCE_TYPE_GITHUB) {
-      return prepareGitHubScanSource(input.githubUrl);
+      return prepareGitHubScanSource(firstFilled(input.targetInput, input.githubUrl));
     }
 
-    if (!isFilled(input.localPath)) {
-      throw new Error("Select a local folder before running scan.");
+    const localCandidate = firstFilled(input.targetInput, input.localPath);
+    if (!isFilled(localCandidate)) {
+      throw new Error("Enter repository or folder in the top input before running scan.");
     }
 
     return {
-      scanPath: String(input.localPath).trim(),
-      repo: getPathBasename(input.localPath)
+      scanPath: String(localCandidate).trim(),
+      repo: getPathBasename(localCandidate)
     };
   }
 
@@ -531,39 +1229,9 @@
       throw new Error("GitHub URL must look like https://github.com/org/repo(.git).");
     }
 
-    const response = await postJsonToCandidateEndpoints(
-      [
-        window.NEON_SCAN_ENDPOINTS?.prepareSource,
-        window.NEON_SCAN_ENDPOINTS?.prepare,
-        window.NEON_DATA_ENDPOINTS?.prepareSource,
-        "/api/scan/prepare-source",
-        "/api/scan/prepare"
-      ],
-      {
-        sourceType: SOURCE_TYPE_GITHUB,
-        repoUrl: String(repoUrl).trim(),
-        cloneToTemp: true
-      }
-    );
-
-    if (!response || !response.body || typeof response.body !== "object") {
-      throw new Error("Backend clone endpoint is unavailable. Configure /api/scan/prepare-source.");
-    }
-
-    const scanPath = firstFilled(
-      response.body.scanPath,
-      response.body.targetPath,
-      response.body.path,
-      response.body.tempPath,
-      response.body.localPath
-    );
-    if (!isFilled(scanPath)) {
-      throw new Error("GitHub repo was prepared, but no temp scan path was returned.");
-    }
-
     return {
-      scanPath: String(scanPath),
-      repo: firstFilled(response.body.repo, extractRepoNameFromGitHubUrl(repoUrl))
+      scanPath: String(repoUrl).trim(),
+      repo: firstFilled(extractRepoNameFromGitHubUrl(repoUrl), "github-repo")
     };
   }
 
@@ -574,15 +1242,58 @@
         window.NEON_SCAN_ENDPOINTS?.execute,
         window.NEON_DATA_ENDPOINTS?.scanStart,
         "/api/scan/start",
-        "/api/scan/execute"
+        "/api/scan/execute",
+        ...LOCAL_SCAN_API_BASE_CANDIDATES.map((baseUrl) => `${baseUrl}/api/scan/start`),
+        ...LOCAL_SCAN_API_BASE_CANDIDATES.map((baseUrl) => `${baseUrl}/api/scan/execute`)
       ],
       payload
     );
-    return Boolean(response);
+    if (!response) {
+      throw new Error("Scan start endpoint is unavailable. Start the local API server with npm run dev.");
+    }
+    if (isFilled(response.error)) {
+      throw new Error(String(response.error));
+    }
+    if (!response.body || typeof response.body !== "object") {
+      throw new Error("Scan start endpoint returned an invalid response.");
+    }
+    if (response.body.accepted === false) {
+      throw new Error(firstFilled(response.body.error, "Scan request was rejected by backend."));
+    }
+    return response.body;
+  }
+
+  async function dispatchDashboardScanStop(payload) {
+    const response = await postJsonToCandidateEndpoints(
+      [
+        window.NEON_SCAN_ENDPOINTS?.stop,
+        window.NEON_SCAN_ENDPOINTS?.kill,
+        window.NEON_DATA_ENDPOINTS?.scanStop,
+        "/api/scan/stop",
+        "/api/scan/kill",
+        ...LOCAL_SCAN_API_BASE_CANDIDATES.map((baseUrl) => `${baseUrl}/api/scan/stop`),
+        ...LOCAL_SCAN_API_BASE_CANDIDATES.map((baseUrl) => `${baseUrl}/api/scan/kill`)
+      ],
+      payload
+    );
+    if (!response) {
+      throw new Error("Scan stop endpoint is unavailable. Start the local API server with npm run dev.");
+    }
+    if (isFilled(response.error)) {
+      throw new Error(String(response.error));
+    }
+    if (!response.body || typeof response.body !== "object") {
+      throw new Error("Scan stop endpoint returned an invalid response.");
+    }
+    if (response.body.accepted === false) {
+      throw new Error(firstFilled(response.body.error, "Scan stop request was rejected by backend."));
+    }
+    return response.body;
   }
 
   async function postJsonToCandidateEndpoints(candidates, body) {
     const uniqueCandidates = [...new Set(toArray(candidates).filter(Boolean))];
+    let lastError = "";
     for (const url of uniqueCandidates) {
       try {
         const response = await fetch(url, {
@@ -593,21 +1304,32 @@
           },
           body: JSON.stringify(body)
         });
-        if (!response.ok) {
-          continue;
-        }
 
         const contentType = response.headers.get("content-type") || "";
         const payload = contentType.includes("application/json")
           ? await response.json()
           : { message: await response.text() };
+
+        if (!response.ok) {
+          lastError = firstFilled(payload?.error, payload?.message, `Request failed (${response.status})`);
+          continue;
+        }
         return {
+          error: "",
           url,
           body: payload
         };
       } catch (_error) {
-        // Try next endpoint.
+        const currentOrigin = isFilled(window.location?.origin) ? String(window.location.origin) : "current origin";
+        lastError = `Unable to reach scan endpoint from ${currentOrigin}. Start local API server with npm run dev and open dashboard via http://localhost:8080/web/pages/dashboard/.`;
       }
+    }
+    if (isFilled(lastError)) {
+      return {
+        error: lastError,
+        url: "",
+        body: null
+      };
     }
     return null;
   }
@@ -726,7 +1448,7 @@
 
     const systemStatus = toUpper(data.systemStatus);
     if (systemStatus) {
-      setText("codex-system-status", `SYSTEM_STATUS: ${systemStatus}`);
+      setText("codex-system-status", `SYSTEM STATUS: ${systemStatus}`);
     }
     if (isFilled(data.uptime)) {
       setText("codex-uptime", data.uptime);
@@ -757,9 +1479,9 @@
             <div class="${rowClass}">
               <div class="flex items-center gap-3">
                 <div class="${dotClass}"></div>
-                <span class="${nameClass}">${escapeHtml(framework.name || "UNKNOWN")}</span>
+                <span class="${nameClass}">${escapeHtml(humanizeText(framework.name || "UNKNOWN"))}</span>
               </div>
-              <span class="text-[10px] text-text-muted font-mono">${escapeHtml(framework.version || (active ? "ACTIVE" : "OFF"))}</span>
+              <span class="text-[10px] text-text-muted font-mono">${escapeHtml(humanizeText(framework.version || (active ? "ACTIVE" : "OFF")))}</span>
             </div>
           `;
         })
@@ -793,7 +1515,7 @@
               <button class="w-full text-left group flex items-center justify-between px-4 py-3 bg-primary text-background-dark font-bold border border-primary relative overflow-hidden">
                 <div class="flex items-center gap-3 relative z-10">
                   <span class="material-symbols-outlined text-[18px]">folder_open</span>
-                  <span class="tracking-wide text-sm font-mono">${escapeHtml(item.name || "Unnamed")}</span>
+                  <span class="tracking-wide text-sm font-mono">${escapeHtml(humanizeText(item.name || "Unnamed"))}</span>
                 </div>
                 <div class="absolute top-0 right-0 size-2 bg-background-dark transform rotate-45 translate-x-1.5 -translate-y-1.5"></div>
               </button>
@@ -804,7 +1526,7 @@
             <button class="w-full text-left group flex items-center justify-between px-4 py-3 hover:bg-white/5 text-text-muted hover:text-primary transition-all border border-transparent hover:border-border-dark">
               <div class="flex items-center gap-3">
                 <span class="material-symbols-outlined text-[18px]">folder</span>
-                <span class="tracking-wide text-sm font-mono">${escapeHtml(item.name || "Unnamed")}</span>
+                <span class="tracking-wide text-sm font-mono">${escapeHtml(humanizeText(item.name || "Unnamed"))}</span>
               </div>
             </button>
           `;
@@ -897,7 +1619,7 @@
 
           return `
             <label class="flex items-center justify-between cursor-pointer group">
-              <span class="${nameClass}">${escapeHtml(framework.name || "UNKNOWN")}</span>
+              <span class="${nameClass}">${escapeHtml(humanizeText(framework.name || "UNKNOWN"))}</span>
               <input ${enabled ? "checked" : ""} class="form-checkbox h-3 w-3 text-primary bg-background border-border rounded-none focus:ring-0 focus:ring-offset-0" type="checkbox"/>
             </label>
           `;
@@ -971,7 +1693,7 @@
           return `
             <div class="space-y-1">
               <div class="flex items-center justify-between text-[11px] font-mono">
-                <span class="${tone.textClass}">${escapeHtml(item.label || "SEVERITY")}</span>
+                <span class="${tone.textClass}">${escapeHtml(humanizeText(item.label || "SEVERITY"))}</span>
                 <span class="text-white">${escapeHtml(item.count ?? "0")}</span>
               </div>
               <div class="w-full bg-border h-1.5">
@@ -1000,8 +1722,8 @@
           (item) => `
             <div class="bg-surface/30 border border-border px-2.5 py-2 flex items-center justify-between hover:border-primary/50 transition-colors cursor-pointer">
               <div class="flex flex-col">
-              <span class="text-[8px] text-text-muted font-mono font-bold">${escapeHtml(item.code || "UNKNOWN")}</span>
-              <span class="text-[10px] text-white font-mono uppercase">${escapeHtml(item.title || "Untitled Check")}</span>
+              <span class="text-[8px] text-text-muted font-mono font-bold">${escapeHtml(humanizeText(item.code || "UNKNOWN"))}</span>
+              <span class="text-[10px] text-white font-mono uppercase">${escapeHtml(humanizeText(item.title || "Untitled Check"))}</span>
             </div>
               <span class="material-symbols-outlined text-success text-[16px]">check</span>
             </div>
@@ -1026,7 +1748,7 @@
         .map(
           (item, index) => `
             <div class="flex items-center justify-between text-[10px] font-mono text-text-muted">
-              <span class="uppercase">${escapeHtml(item.name || "N/A")}</span>
+              <span class="uppercase">${escapeHtml(humanizeText(item.name || "N/A"))}</span>
               <span class="text-[8px] px-1 border border-text-muted">N/A</span>
             </div>
             ${index < notApplicable.length - 1 ? '<div class="w-full h-px bg-border"></div>' : ""}
@@ -1086,7 +1808,7 @@
     const result = toUpper(data.result || (failCount > 0 ? "MANDATE_GAPS_FOUND" : "ALL_CHECKS_PASSED"));
     const action = toUpper(data.action || (failCount > 0 ? "REMEDIATION_IN_PROGRESS" : "CONTINUOUS_MONITORING"));
     const passRateToken = Number.isFinite(passRate) ? `${Math.round(passRate)}%` : "--";
-    return `// RESULT: ${result} // OPEN_MANDATES: ${failCount} // PASS_RATE: ${passRateToken} // ${action}`;
+    return `// RESULT: ${result} // OPEN MANDATES: ${failCount} // PASS RATE: ${passRateToken} // ${action}`;
   }
 
   function getBannerToneByScore(passRate, fallback) {
@@ -1207,7 +1929,7 @@
             <p class="text-text-main text-sm leading-relaxed font-mono opacity-90">${escapeHtml(details.description || item.description || "")}</p>
             <div class="bg-background-dark border border-border-dark p-3">
               <div class="flex items-center justify-between mb-2 border-b border-border-dark pb-2">
-                <span class="text-[10px] text-text-muted font-bold tracking-wider font-mono">EVIDENCE_LOG</span>
+                <span class="text-[10px] text-text-muted font-bold tracking-wider font-mono">EVIDENCE LOG</span>
                 <span class="text-[10px] text-primary font-mono font-bold">${escapeHtml(toUpper(details.evidenceStatus || "VERIFIED"))}</span>
               </div>
               <div class="font-mono text-xs text-text-muted font-light">
@@ -1471,8 +2193,8 @@
   function renderFooterTickerItem(item) {
     return `
       <span class="footer-ticker-item">
-        <span class="footer-ticker-label">${escapeHtml(item.label || "INFO")}</span>
-        <span class="${resolveFooterToneClass(item.tone || inferToneToken(item.value))}">${escapeHtml(item.value)}</span>
+        <span class="footer-ticker-label">${escapeHtml(humanizeText(item.label || "INFO"))}</span>
+        <span class="${resolveFooterToneClass(item.tone || inferToneToken(item.value))}">${escapeHtml(humanizeText(item.value))}</span>
       </span>
     `;
   }
@@ -1513,7 +2235,7 @@
     if (!node || !isFilled(value)) {
       return;
     }
-    node.textContent = String(value);
+    node.textContent = humanizeText(value);
   }
 
   function byId(id) {
@@ -1525,7 +2247,14 @@
   }
 
   function toUpper(value) {
-    return isFilled(value) ? String(value).toUpperCase() : "";
+    return isFilled(value) ? humanizeText(value).toUpperCase() : "";
+  }
+
+  function humanizeText(value) {
+    if (!isFilled(value)) {
+      return "";
+    }
+    return String(value).replace(/_/g, " ").replace(/\s+/g, " ").trim();
   }
 
   function isFilled(value) {

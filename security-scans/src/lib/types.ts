@@ -8,8 +8,10 @@ export type SkillAssessment =
 export type SkillConfidence = "low" | "medium" | "high" | "n/a";
 
 export interface ScanRunConfig {
-  repoUrl: string;
+  repoUrl: string | null;
+  repoPath: string | null;
   maxConcurrency: number;
+  maxSkills: number;
   runId: string;
   dryRun: boolean;
   model: string;

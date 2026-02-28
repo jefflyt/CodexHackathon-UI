@@ -6,4 +6,5 @@ node_modules/
 security-scans/skillpacks/
 security-scans/workspaces/
 security-scans/results/
+.env
 security-scans/.env

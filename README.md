@@ -81,7 +81,12 @@ Expected backend contract (from separate repo):
 From repository root:
 
 ```bash
-python3 -m http.server 8080
+# one-time setup for scanner runtime
+cd security-scans && npm install
+cp .env.example .env   # set OPENAI_API_KEY (or set it in repo-root .env)
+cd ..
+
+npm run dev
 ```
 
 Open:
@@ -89,3 +94,13 @@ Open:
 - `http://localhost:8080/web/pages/dashboard/`
 - `http://localhost:8080/web/pages/compliance-codex/`
 - `http://localhost:8080/web/pages/scan-report/`
+
+This local server also exposes scan endpoints used by the dashboard:
+
+- `POST /api/scan/start`
+- `POST /api/scan/execute`
+- `GET /api/scan/logs?sessionId=<id>&since=<lastLogId>`
+
+If scanner prerequisites are missing, `Execute Scan` will fail fast with a clear message in Source Status and the terminal API logs.
+
+Note: dashboard-triggered scans are currently capped to 5 skills for faster testing.
