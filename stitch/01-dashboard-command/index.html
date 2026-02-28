@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Neon Guardian - Integrated Command Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&amp;family=Space+Mono:wght@400;700&amp;family=Fira+Code:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#00FF94",
+                        "cyan-neon": "#00FFFF",
+                        "background": "#0A0A0C",
+                        "sidebar-bg": "#050506",
+                        "surface": "#161618",
+                        "border": "#333333",
+                        "critical": "#FF2A6D",
+                        "warning": "#FFD700",
+                        "text-main": "#E0E0E0",
+                        "text-muted": "#666666",
+                    },
+                    fontFamily: {
+                        "mono": ["JetBrains Mono", "monospace"],
+                        "body": ["Space Mono", "monospace"],
+                        "code": ["Fira Code", "monospace"],
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0px",
+                    },
+                    backgroundImage: {
+                        'grid-pattern': "radial-gradient(#333333 1px, transparent 1px)",
+                    },
+                    backgroundSize: {
+                        'grid-pattern': '24px 24px',
+                    },
+                    boxShadow: {
+                        'neon-border': '1px 0 10px rgba(0, 255, 255, 0.3)',
+                    }
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        @layer base {
+            body {
+                @apply bg-background text-text-main font-body overflow-hidden h-screen;
+            }
+        }
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0A0A0C;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #333333;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #00FF94;
+        }
+        .scanline {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(
+                to bottom,
+                rgba(255,255,255,0),
+                rgba(255,255,255,0) 50%,
+                rgba(0,0,0,0.05) 50%,
+                rgba(0,0,0,0.05)
+            );
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 50;
+            opacity: 0.2;
+        }
+        .cursor-blink {
+            animation: blink 1s step-end infinite;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+        .terminal-text {
+            text-shadow: 0 0 5px rgba(0, 255, 148, 0.2);
+        }.toggle-checkbox:checked {
+            right: 0;
+            border-color: #00FF94;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: #00FF94;
+        }
+        .toggle-checkbox:checked + .toggle-label:before {
+            transform: translateX(100%);
+        }
+    </style>
+</head>
+<body class="bg-grid-pattern">
+<div class="scanline"></div>
+<aside class="fixed left-0 top-0 h-full w-64 bg-sidebar-bg z-30 flex flex-col border-r border-cyan-neon shadow-neon-border">
+<div class="p-6 border-b border-border bg-black/20">
+<h1 class="text-white font-mono font-bold text-lg tracking-tighter mb-1">NEON_GUARDIAN</h1>
+<div class="flex items-center gap-2">
+<span class="relative flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+</span>
+<span class="text-primary font-mono text-xs font-bold tracking-widest">SYSTEM_STATUS: ONLINE</span>
+</div>
+</div>
+<nav class="flex-1 px-3 py-6 space-y-1">
+<a class="group flex items-center gap-3 px-3 py-3 bg-surface border border-primary/30 text-primary hover:bg-primary/10 transition-all" href="#">
+<span class="material-symbols-outlined text-lg">dashboard</span>
+<span class="font-mono text-xs font-bold uppercase tracking-wider">DASHBOARD</span>
+<div class="ml-auto w-1 h-1 bg-primary group-hover:shadow-[0_0_5px_#00FF94]"></div>
+</a>
+<a class="group flex items-center gap-3 px-3 py-3 border border-transparent text-text-muted hover:text-text-main hover:border-border hover:bg-surface transition-all" href="#">
+<span class="material-symbols-outlined text-lg">security</span>
+<span class="font-mono text-xs font-bold uppercase tracking-wider">COMPLIANCE CODEX</span>
+</a>
+<a class="group flex items-center gap-3 px-3 py-3 border border-transparent text-text-muted hover:text-text-main hover:border-border hover:bg-surface transition-all" href="#">
+<span class="material-symbols-outlined text-lg">summarize</span>
+<span class="font-mono text-xs font-bold uppercase tracking-wider">SCAN REPORTS</span>
+</a>
+</nav>
+<div class="p-5 border-t border-border bg-black/20">
+<div class="flex items-center justify-between mb-4">
+<span class="text-[10px] font-mono font-bold text-cyan-neon uppercase tracking-widest border-b border-cyan-neon/30 pb-1 w-full">ACTIVE_FRAMEWORKS</span>
+</div>
+<div class="space-y-3">
+<div class="flex items-center justify-between group">
+<span class="text-[11px] font-code text-text-main group-hover:text-primary transition-colors">NIST-AI</span>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox" value=""/>
+<div class="w-8 h-4 bg-surface peer-focus:outline-none border border-border rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-text-muted after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-primary/20 peer-checked:border-primary peer-checked:after:bg-primary peer-checked:after:border-primary"></div>
+</label>
+</div>
+<div class="flex items-center justify-between group">
+<span class="text-[11px] font-code text-text-main group-hover:text-primary transition-colors">ISO-42001</span>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox" value=""/>
+<div class="w-8 h-4 bg-surface peer-focus:outline-none border border-border rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-text-muted after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-primary/20 peer-checked:border-primary peer-checked:after:bg-primary peer-checked:after:border-primary"></div>
+</label>
+</div>
+<div class="flex items-center justify-between group opacity-75 hover:opacity-100 transition-opacity">
+<span class="text-[11px] font-code text-text-muted group-hover:text-text-main transition-colors">EU-AI-ACT</span>
+<label class="relative inline-flex items-center cursor-pointer">
+<input class="sr-only peer" type="checkbox" value=""/>
+<div class="w-8 h-4 bg-surface peer-focus:outline-none border border-border rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-text-muted after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-primary/20 peer-checked:border-primary peer-checked:after:bg-primary peer-checked:after:border-primary"></div>
+</label>
+</div>
+</div>
+</div>
+<div class="p-4 border-t border-border bg-black/40">
+<button class="w-full py-2 border border-critical/50 text-critical font-mono text-[10px] font-bold uppercase hover:bg-critical hover:text-white transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[14px]">power_settings_new</span>
+                Terminate
+            </button>
+</div>
+</aside>
+<main class="ml-64 h-full flex flex-col relative">
+<header class="h-14 border-b border-border bg-background/80 backdrop-blur-md flex items-center justify-between px-8 shrink-0 z-20">
+<div class="flex items-center gap-8 font-mono text-[10px] tracking-widest uppercase">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 bg-primary rounded-full animate-pulse shadow-[0_0_8px_#00FF94]"></span>
+<span class="text-primary font-bold">Uplink: Secure</span>
+</div>
+<div class="text-text-muted">Node: <span class="text-text-main">US-EAST-01</span></div>
+<div class="text-text-muted">Latency: <span class="text-text-main">0.02ms</span></div>
+</div>
+<div class="flex items-center gap-6">
+<div class="font-mono text-[10px] text-text-muted">
+                    USER: <span class="text-text-main">OPERATOR_08</span>
+</div>
+</div>
+</header>
+<div class="flex-1 flex flex-col p-8 gap-8">
+<section class="flex-none flex flex-col items-center justify-center gap-8 py-4">
+<div class="w-full max-w-4xl space-y-2">
+<div class="flex items-center justify-between px-1">
+<label class="font-mono text-[10px] font-bold text-primary uppercase tracking-widest">Select Target Infrastructure</label>
+<span class="font-mono text-[10px] text-text-muted uppercase">Protocol: SSH/HTTPS</span>
+</div>
+<div class="relative group">
+<div class="absolute -inset-0.5 bg-primary/20 opacity-0 group-focus-within:opacity-100 transition duration-500"></div>
+<div class="relative flex items-center bg-black border border-border group-focus-within:border-primary transition-all p-6">
+<span class="text-primary font-mono text-lg mr-4">&gt;&gt;&gt;</span>
+<input class="flex-1 bg-transparent border-none outline-none focus:ring-0 text-text-main font-mono text-xl placeholder-text-muted" placeholder="TYPE_TARGET_NAME" type="text" value="repository: neural-net-v2-production"/>
+<div class="w-3 h-7 bg-primary cursor-blink ml-2"></div>
+</div>
+</div>
+<div class="grid grid-cols-3 gap-4 pt-2">
+<div class="border border-primary bg-primary/5 p-3 cursor-pointer">
+<p class="text-[10px] font-mono text-primary font-bold">neural-net-v2</p>
+<p class="text-[9px] font-code text-text-muted mt-1">Status: Ready</p>
+</div>
+<div class="border border-border p-3 opacity-60 hover:opacity-100 transition-all cursor-pointer">
+<p class="text-[10px] font-mono text-text-main">llm-tokenizer-x</p>
+<p class="text-[9px] font-code text-text-muted mt-1">Status: Standby</p>
+</div>
+<div class="border border-border p-3 opacity-60 hover:opacity-100 transition-all cursor-pointer">
+<p class="text-[10px] font-mono text-text-main">payment-gw-ai</p>
+<p class="text-[9px] font-code text-text-muted mt-1">Status: Critical Failure</p>
+</div>
+</div>
+</div>
+<div class="w-full max-w-md">
+<button class="relative w-full group overflow-hidden">
+<div class="absolute inset-0 bg-primary opacity-0 group-hover:opacity-100 transition-all duration-300"></div>
+<div class="relative py-6 border-2 border-primary text-primary group-hover:text-background font-mono text-2xl font-bold tracking-[0.2em] transition-all flex items-center justify-center gap-4">
+<span class="material-symbols-outlined text-2xl">bolt</span>
+                            [ EXECUTE_SCAN ]
+                        </div>
+</button>
+<p class="text-center mt-3 font-mono text-[10px] text-text-muted uppercase tracking-widest">
+                        Initiate comprehensive compliance audit v2.4.0
+                    </p>
+</div>
+</section>
+<section class="flex-1 flex flex-col min-h-0 border border-border bg-black/40">
+<div class="h-10 border-b border-border bg-surface/50 px-4 flex items-center justify-between shrink-0">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-sm text-primary">terminal</span>
+<h2 class="font-mono text-[10px] font-bold text-text-main uppercase tracking-widest">Live Activity Terminal</h2>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+<span class="font-code text-[9px] text-text-muted">LOGS_STREAMING</span>
+</div>
+<div class="flex gap-1">
+<div class="w-2 h-2 border border-border"></div>
+<div class="w-2 h-2 border border-border"></div>
+</div>
+</div>
+</div>
+<div class="flex-1 p-6 font-code text-xs leading-relaxed overflow-y-auto terminal-text">
+<div class="space-y-1">
+<div class="flex gap-4">
+<span class="text-text-muted shrink-0">[14:20:01]</span>
+<span class="text-primary">SYSTEM:</span>
+<span class="text-text-main">Command session initialized. Welcome OPERATOR_08.</span>
+</div>
+<div class="flex gap-4">
+<span class="text-text-muted shrink-0">[14:20:05]</span>
+<span class="text-primary">TARGET:</span>
+<span class="text-text-main">Uplink established with 'neural-net-v2-production'.</span>
+</div>
+<div class="flex gap-4">
+<span class="text-text-muted shrink-0">[14:20:06]</span>
+<span class="text-warning">HISTORIC:</span>
+<span class="text-text-muted">Last scan (2024-05-18) resulted in <span class="text-primary">[PASS]</span>.</span>
+</div>
+<div class="flex gap-4 pt-2">
+<span class="text-text-muted shrink-0">[14:21:12]</span>
+<span class="text-primary">LOGS:</span>
+<span class="text-text-main">Checking model weights for encryption layers... <span class="text-primary">[OK]</span></span>
+</div>
+<div class="flex gap-4">
+<span class="text-text-muted shrink-0">[14:21:14]</span>
+<span class="text-primary">LOGS:</span>
+<span class="text-text-main">Scanning for PII leakage in training dataset headers... <span class="text-primary">[OK]</span></span>
+</div>
+<div class="flex gap-4">
+<span class="text-text-muted shrink-0">[14:21:18]</span>
+<span class="text-critical">ALERT:</span>
+<span class="text-critical">Unprotected metadata detected in /cache/temp_v1. [CRITICAL_RISK]</span>
+</div>
+<div class="flex gap-4">
+<span class="text-text-muted shrink-0">[14:21:20]</span>
+<span class="text-primary">LOGS:</span>
+<span class="text-text-main">Running OWASP LLM-01: Prompt Injection vulnerability scan...</span>
+</div>
+<div class="flex gap-4 pt-2 animate-pulse">
+<span class="text-text-muted shrink-0">[14:21:25]</span>
+<span class="text-primary">READY:</span>
+<span class="text-text-main">Awaiting execution command. Target fully mapped.</span>
+</div>
+<div class="flex gap-4">
+<span class="text-primary shrink-0">&gt;</span>
+<span class="text-primary w-2 h-4 bg-primary cursor-blink"></span>
+</div>
+</div>
+</div>
+<div class="h-8 border-t border-border bg-surface/30 px-4 flex items-center justify-between shrink-0">
+<div class="flex gap-6 font-code text-[9px] text-text-muted">
+<span>ENTRIES: 1,402</span>
+<span>ERRORS: 1</span>
+<span>WARNINGS: 0</span>
+</div>
+<div class="text-[9px] font-mono text-text-muted">
+                        ASCII_UTF-8 // SECURE_SOCKET_01
+                    </div>
+</div>
+</section>
+</div>
+<footer class="h-8 bg-surface border-t border-border flex items-center overflow-hidden shrink-0">
+<div class="px-4 bg-critical text-background font-mono text-[10px] font-bold h-full flex items-center shrink-0">
+                LIVE_THREAT_INTEL
+            </div>
+<div class="flex-1 px-4 font-code text-[10px] text-text-muted whitespace-nowrap overflow-hidden italic">
+<span class="text-critical">CRITICAL:</span> CVE-2024-2191 detected in transformer library v4.2 --- <span class="text-warning">WARNING:</span> New jailbreak pattern identified for Llama-3 variants --- <span class="text-primary">INFO:</span> EU AI Act compliance module updated to v1.2.4 --- <span class="text-critical">CRITICAL:</span> Unauthorized egress from model-training-subnet-B detected...
+            </div>
+</footer>
+</main>
+</body></html>
