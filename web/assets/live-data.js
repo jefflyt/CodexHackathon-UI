@@ -146,7 +146,8 @@
 
   function isActiveScanReportContext(context) {
     const status = String(context?.status || "").toLowerCase();
-    return isFilled(context?.sessionId) && (status === "running" || status === "starting");
+    const terminalStates = new Set(["completed", "failed", "canceled", "stopped", "idle", "unknown", "error"]);
+    return isFilled(context?.sessionId) && !terminalStates.has(status);
   }
 
   function appendScanContextToEndpoint(url) {

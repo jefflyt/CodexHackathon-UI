@@ -525,13 +525,26 @@ ASI10: Rogue Agents`;
                 return line.replace(/\s+/g, " ").trim();
             }
 
+            function escapeHtml(value) {
+                return String(value)
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#39;");
+            }
+
+            function mandateAnchorId(code) {
+                return "codex-mandate-" + String(code).replace(/[^0-9]+/g, "-").replace(/^-+|-+$/g, "");
+            }
+
             function parseFromLines(lines) {
                 const parsedPillars = {};
 
                 lines.forEach((line) => {
-                    const pillarMatch = line.match(/^2\.(\d+)\s+Pillar\s+[IVX]+:\s+(.+)$/i);
+                    const pillarMatch = line.match(/^2\.(\d+)\s+(Pillar\s+[IVX]+)\s*:\s+(.+)$/i);
                     if (pillarMatch) {
-                        parsedPillars["2." + pillarMatch[1]] = pillarMatch[2].trim();
+                        parsedPillars["2." + pillarMatch[1]] = cleanLine(pillarMatch[2] + ": " + pillarMatch[3]);
                     }
                 });
 
@@ -658,26 +671,45 @@ ASI10: Rogue Agents`;
                 const pills = ordered.map((entry) => {
                     const group = entry[0];
                     const title = entry[1];
-                    const mandateCount = mandates.filter((mandate) => mandate.group === group).length;
+                    const groupMandates = mandates
+                        .filter((mandate) => mandate.group === group)
+                        .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+                    const mandateCount = groupMandates.length;
                     const isActive = activePillarGroups.has(group);
                     const itemClass = isActive
-                        ? "bg-primary/10 text-primary border border-primary/40"
-                        : "bg-background-dark text-text-muted border border-border-dark hover:text-white hover:border-primary/40";
+                        ? "bg-primary/10 text-primary border-primary/40"
+                        : "bg-background-dark text-text-muted border-border-dark hover:text-white hover:border-primary/40";
                     const icon = isActive ? "check_box" : "check_box_outline_blank";
+                    const mandateLinks = groupMandates.map((mandate) => {
+                        return `
+                            <button
+                                class="w-full text-left px-2 py-1 text-[10px] font-mono text-text-main hover:text-primary hover:bg-primary/10 border border-transparent transition-all"
+                                type="button"
+                                data-library-jump="${escapeHtml(mandate.code)}"
+                                data-mandate-group="${escapeHtml(group)}">
+                                <span class="text-text-muted">${escapeHtml(mandate.code)}</span> ${escapeHtml(mandate.title)}
+                            </button>`;
+                    }).join("");
+
                     return `
-                        <button class="w-full text-left px-4 py-3 transition-all ${itemClass}" type="button" data-library-group="${group}" aria-pressed="${isActive}">
-                            <div class="flex items-center justify-between gap-3">
-                                <div class="flex items-center gap-2 min-w-0">
-                                    <span class="material-symbols-outlined text-[16px]">${icon}</span>
-                                    <span class="text-[11px] font-mono truncate">${group} ${title}</span>
+                        <section class="border ${itemClass}">
+                            <button class="w-full text-left px-3 py-2 transition-all border-b border-border-dark/50" type="button" data-library-group="${group}" aria-pressed="${isActive}">
+                                <div class="flex items-center justify-between gap-3">
+                                    <div class="flex items-center gap-2 min-w-0">
+                                        <span class="material-symbols-outlined text-[16px]">${icon}</span>
+                                        <span class="text-[11px] font-mono truncate">${escapeHtml(group)} ${escapeHtml(title)}</span>
+                                    </div>
+                                    <span class="text-[10px] font-mono">${mandateCount}</span>
                                 </div>
-                                <span class="text-[10px] font-mono">${mandateCount}</span>
+                            </button>
+                            <div class="px-1 py-1 ${isActive ? "" : "opacity-65"}">
+                                ${mandateLinks || `<div class="px-2 py-1 text-[10px] text-text-muted font-mono">No mandates found.</div>`}
                             </div>
-                        </button>`;
+                        </section>`;
                 }).join("");
 
                 libraryListEl.innerHTML = `
-                    <div class="text-[10px] text-text-muted font-mono px-2 py-1 tracking-widest">PILLAR SCOPE (MULTI SELECT)</div>
+                    <div class="text-[10px] text-text-muted font-mono px-2 py-1 tracking-widest">DOCX LIBRARY INDEX (PILLAR SCOPE)</div>
                     <div class="space-y-1">${pills}</div>
                 `;
             }
@@ -738,12 +770,18 @@ ASI10: Rogue Agents`;
                         </div>`;
 
                     groups[groupKey].forEach((mandate) => {
+                        const anchorId = mandateAnchorId(mandate.code);
                         const risksHtml = mandate.risks.length
                             ? mandate.risks.map((risk) => `<li class="text-xs text-text-main font-mono">${risk}</li>`).join("")
                             : `<li class="text-xs text-text-muted font-mono">No mapped threat references.</li>`;
 
                         html += `
-                            <article class="border border-border-dark bg-surface-dark relative group transition-all mandate-card" data-level="${mandate.riskLevel}" data-search="${mandate.searchText}">
+                            <article
+                                class="border border-border-dark bg-surface-dark relative group transition-all mandate-card"
+                                id="${anchorId}"
+                                data-mandate-code="${mandate.code}"
+                                data-level="${mandate.riskLevel}"
+                                data-search="${mandate.searchText}">
                                 <div class="absolute top-0 bottom-0 left-0 w-1 ${levelStripeClass(mandate.riskLevel)}"></div>
                                 <div class="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
                                     <div class="flex items-start md:items-center gap-5">
@@ -872,6 +910,32 @@ ASI10: Rogue Agents`;
             });
             filterInput.addEventListener("input", applyFilters);
             libraryListEl.addEventListener("click", function (event) {
+                const mandateTrigger = event.target.closest("[data-library-jump]");
+                if (mandateTrigger) {
+                    const targetCode = mandateTrigger.dataset.libraryJump;
+                    const targetGroup = mandateTrigger.dataset.mandateGroup;
+
+                    if (targetGroup && !activePillarGroups.has(targetGroup)) {
+                        activePillarGroups.add(targetGroup);
+                        buildLibraryTree(pillars);
+                        renderCurrentScope();
+                    }
+
+                    const target = document.getElementById(mandateAnchorId(targetCode));
+                    if (target) {
+                        target.scrollIntoView({ behavior: "smooth", block: "start" });
+                        const previousOutline = target.style.outline;
+                        const previousOffset = target.style.outlineOffset;
+                        target.style.outline = "1px solid rgba(34, 211, 238, 0.9)";
+                        target.style.outlineOffset = "2px";
+                        window.setTimeout(() => {
+                            target.style.outline = previousOutline;
+                            target.style.outlineOffset = previousOffset;
+                        }, 900);
+                    }
+                    return;
+                }
+
                 const trigger = event.target.closest("[data-library-group]");
                 if (!trigger) {
                     return;
