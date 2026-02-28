@@ -875,12 +875,15 @@
     }
 
     const failedMandates = toArray(data.failedMandates);
-    const rawPassRate = Number(data.passRate);
-    const passRate = Number.isFinite(rawPassRate) ? Math.max(0, Math.min(100, rawPassRate)) : NaN;
+    const passedChecks = toArray(data.passedChecks);
     const rawFailCount = Number(data.fail);
     const derivedFailCount = Number.isFinite(rawFailCount) ? Math.max(0, Math.round(rawFailCount)) : failedMandates.length;
+    const passRate = resolveScanPassRate(data, derivedFailCount, passedChecks.length);
 
-    const bannerTone = getTone(data.severity || data.status || (derivedFailCount > 0 ? "critical" : "success"));
+    const bannerTone = getBannerToneByScore(
+      passRate,
+      data.severity || data.status || (derivedFailCount > 0 ? "critical" : "success")
+    );
     styleScanBanner(bannerTone);
 
     const computedTitle = buildScanStatusTitle(data, failedMandates, derivedFailCount);
@@ -893,18 +896,23 @@
       setText("scan-status-subtitle", computedSubtitle);
     }
 
+    const roundedPassRate = Number.isFinite(passRate) ? Math.round(passRate) : null;
+    setText("scan-banner-pass-rate", roundedPassRate !== null ? `${roundedPassRate}%` : "--%");
+    const bannerScoreFill = byId("scan-banner-score-fill");
+    if (bannerScoreFill) {
+      bannerScoreFill.style.width = `${Number.isFinite(passRate) ? passRate : 0}%`;
+    }
+
     startLiveTimestampClock("scan-timestamp");
 
-    if (Number.isFinite(passRate)) {
-      setText("scan-pass-rate", `${Math.round(passRate)}%`);
-      const circle = byId("scan-pass-rate-circle");
-      if (circle) {
-        const radius = 45;
-        const circumference = 2 * Math.PI * radius;
-        const fillAmount = (passRate / 100) * circumference;
-        circle.setAttribute("stroke", bannerTone.hex);
-        circle.setAttribute("stroke-dasharray", `${fillAmount} ${circumference}`);
-      }
+    setText("scan-pass-rate", roundedPassRate !== null ? `${roundedPassRate}%` : "--%");
+    const circle = byId("scan-pass-rate-circle");
+    if (circle) {
+      const radius = 45;
+      const circumference = 2 * Math.PI * radius;
+      const fillAmount = ((Number.isFinite(passRate) ? passRate : 0) / 100) * circumference;
+      circle.setAttribute("stroke", bannerTone.hex);
+      circle.setAttribute("stroke-dasharray", `${fillAmount} ${circumference}`);
     }
 
     if (Number.isFinite(Number(data.success))) {
@@ -939,7 +947,6 @@
       failedRoot.innerHTML = failedMandates.map((item) => renderFailedMandate(item)).join("");
     }
 
-    const passedChecks = toArray(data.passedChecks);
     if (passedChecks.length > 0) {
       setText("scan-passed-count", String(passedChecks.length));
     }
@@ -950,19 +957,19 @@
       passedRoot.innerHTML = `${passedChecks
         .map(
           (item) => `
-            <div class="bg-surface/30 border border-border p-3 flex items-center justify-between hover:border-primary/50 transition-colors cursor-pointer">
+            <div class="bg-surface/30 border border-border px-2.5 py-2 flex items-center justify-between hover:border-primary/50 transition-colors cursor-pointer">
               <div class="flex flex-col">
-              <span class="text-[9px] text-text-muted font-mono font-bold">${escapeHtml(item.code || "UNKNOWN")}</span>
-              <span class="text-[11px] text-white font-mono uppercase">${escapeHtml(item.title || "Untitled Check")}</span>
+              <span class="text-[8px] text-text-muted font-mono font-bold">${escapeHtml(item.code || "UNKNOWN")}</span>
+              <span class="text-[10px] text-white font-mono uppercase">${escapeHtml(item.title || "Untitled Check")}</span>
             </div>
-              <span class="material-symbols-outlined text-success text-[18px]">check</span>
+              <span class="material-symbols-outlined text-success text-[16px]">check</span>
             </div>
           `
         )
         .join("")}
         ${
           overflow > 0
-            ? `<div class="text-center py-3 text-[10px] font-mono text-text-muted border border-border border-dashed hover:text-white transition-colors cursor-pointer uppercase">+ ${overflow} more compliant mandates</div>`
+            ? `<div class="text-center py-2 text-[9px] font-mono text-text-muted border border-border border-dashed hover:text-white transition-colors cursor-pointer uppercase">+ ${overflow} more compliant mandates</div>`
             : ""
         }`;
     }
@@ -977,9 +984,9 @@
       notApplicableRoot.innerHTML = notApplicable
         .map(
           (item, index) => `
-            <div class="flex items-center justify-between text-[11px] font-mono text-text-muted">
+            <div class="flex items-center justify-between text-[10px] font-mono text-text-muted">
               <span class="uppercase">${escapeHtml(item.name || "N/A")}</span>
-              <span class="text-[9px] px-1 border border-text-muted">N/A</span>
+              <span class="text-[8px] px-1 border border-text-muted">N/A</span>
             </div>
             ${index < notApplicable.length - 1 ? '<div class="w-full h-px bg-border"></div>' : ""}
           `
@@ -1025,6 +1032,43 @@
     const action = toUpper(data.action || (failCount > 0 ? "REMEDIATION_IN_PROGRESS" : "CONTINUOUS_MONITORING"));
     const passRateToken = Number.isFinite(passRate) ? `${Math.round(passRate)}%` : "--";
     return `// RESULT: ${result} // OPEN_MANDATES: ${failCount} // PASS_RATE: ${passRateToken} // ${action}`;
+  }
+
+  function getBannerToneByScore(passRate, fallback) {
+    if (Number.isFinite(passRate)) {
+      if (passRate >= 85) {
+        return getTone("success");
+      }
+      if (passRate >= 60) {
+        return getTone("warning");
+      }
+      return getTone("critical");
+    }
+    return getTone(fallback);
+  }
+
+  function resolveScanPassRate(data, failCount, passedCount) {
+    const directPassRate = Number(data.passRate);
+    if (Number.isFinite(directPassRate)) {
+      return Math.max(0, Math.min(100, directPassRate));
+    }
+
+    const passedOverflow = Number(data.passedOverflow);
+    const effectivePassedCount = Math.max(0, Number.isFinite(passedCount) ? passedCount : 0) + Math.max(0, Number.isFinite(passedOverflow) ? passedOverflow : 0);
+    const successCount = Number(data.success);
+    if (Number.isFinite(successCount) && successCount >= 0) {
+      const total = successCount + Math.max(0, Number.isFinite(failCount) ? failCount : 0);
+      if (total > 0) {
+        return Math.max(0, Math.min(100, (successCount / total) * 100));
+      }
+    }
+
+    const totalFromChecks = effectivePassedCount + Math.max(0, Number.isFinite(failCount) ? failCount : 0);
+    if (totalFromChecks > 0) {
+      return Math.max(0, Math.min(100, (effectivePassedCount / totalFromChecks) * 100));
+    }
+
+    return NaN;
   }
 
   function startLiveTimestampClock(elementId) {
@@ -1186,6 +1230,9 @@
     const stripe = byId("scan-banner-stripe");
     const title = byId("scan-status-title");
     const subtitle = byId("scan-status-subtitle");
+    const icon = byId("scan-status-icon");
+    const bannerPassRate = byId("scan-banner-pass-rate");
+    const bannerScoreFill = byId("scan-banner-score-fill");
 
     if (banner) {
       banner.classList.remove(
@@ -1215,6 +1262,22 @@
       subtitle.classList.remove("text-critical/70", "text-warning/70", "text-success/70", "text-primary/70");
       subtitle.classList.add(tone.subtitleClass);
     }
+
+    if (icon) {
+      icon.classList.remove("text-critical", "text-warning", "text-success", "text-primary");
+      icon.classList.add(tone.textClass);
+      icon.textContent = tone.icon || "radar";
+    }
+
+    if (bannerPassRate) {
+      bannerPassRate.classList.remove("text-critical", "text-warning", "text-success", "text-primary");
+      bannerPassRate.classList.add(tone.textClass);
+    }
+
+    if (bannerScoreFill) {
+      bannerScoreFill.classList.remove("bg-critical", "bg-warning", "bg-success", "bg-primary");
+      bannerScoreFill.classList.add(tone.bgClass);
+    }
   }
 
   function getTone(value) {
@@ -1230,7 +1293,8 @@
         subtitleClass: "text-critical/70",
         bannerBgClass: "bg-critical/5",
         glowClass: "shadow-glow-critical",
-        hex: "#EF4444"
+        hex: "#EF4444",
+        icon: "dangerous"
       };
     }
 
@@ -1244,7 +1308,8 @@
         subtitleClass: "text-warning/70",
         bannerBgClass: "bg-warning/5",
         glowClass: "",
-        hex: "#FACC15"
+        hex: "#FACC15",
+        icon: "report_problem"
       };
     }
 
@@ -1258,7 +1323,8 @@
         subtitleClass: "text-success/70",
         bannerBgClass: "bg-success/5",
         glowClass: "",
-        hex: "#22C55E"
+        hex: "#22C55E",
+        icon: "verified"
       };
     }
 
@@ -1271,7 +1337,8 @@
       subtitleClass: "text-primary/70",
       bannerBgClass: "bg-primary/5",
       glowClass: "shadow-glow",
-      hex: "#22D3EE"
+      hex: "#22D3EE",
+      icon: "radar"
     };
   }
 
@@ -1322,7 +1389,7 @@
     const hour = String(date.getUTCHours()).padStart(2, "0");
     const minute = String(date.getUTCMinutes()).padStart(2, "0");
     const second = String(date.getUTCSeconds()).padStart(2, "0");
-    return `${year}-${month}-${day}_${hour}:${minute}:${second}`;
+    return `${year}-${month}-${day} ${hour}:${minute}:${second} UTC`;
   }
 
   function setText(id, value) {
