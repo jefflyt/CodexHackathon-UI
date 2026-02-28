@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { existsSync, readFileSync } from "node:fs";
-import { readFile, stat } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -34,6 +34,331 @@ const MIME_TYPES = {
   ".woff": "font/woff",
   ".woff2": "font/woff2"
 };
+
+const SECURITY_SCAN_RESULTS_DIR = path.join(securityScansRoot, "results");
+const SECURITY_SCAN_REPORT_FALLBACK_FRAMEWORKS = [
+  { name: "NIST AI RMF", enabled: true },
+  { name: "EU AI Act", enabled: true },
+  { name: "ISO 42001", enabled: true },
+  { name: "GDPR", enabled: false }
+];
+
+function clampRate(value) {
+  if (!Number.isFinite(value)) {
+    return NaN;
+  }
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+async function resolveScanReportSession(sessionId = "") {
+  const candidates = await getScanResultFolders(sessionId);
+  if (candidates.length > 0) {
+    return candidates[0];
+  }
+  return "";
+}
+
+async function getScanResultFolders(sessionId = "") {
+  const entries = await readdir(SECURITY_SCAN_RESULTS_DIR, { withFileTypes: true }).catch(() => []);
+  const target = String(sessionId || "").trim();
+  const allFolders = entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .filter((name) => /^\d{8,}\-/.test(name))
+    .sort()
+    .reverse();
+
+  if (isFilled(target)) {
+    const exact = allFolders.filter((folder) => folder.endsWith(`-${target}`));
+    if (exact.length > 0) {
+      return exact;
+    }
+  }
+
+  return allFolders;
+}
+
+function parseScanResultFileText(raw) {
+  try {
+    return JSON.parse(String(raw || ""));
+  } catch (_error) {
+    return null;
+  }
+}
+
+function toScanReportSeverity(item) {
+  const token = String(item?.static_status || item?.severity || "").toLowerCase();
+  const evidence = Array.isArray(item?.evidence) ? item.evidence : [];
+
+  if (token.includes("critical") || token.includes("missing") || token.includes("failure") || token.includes("failed")) {
+    return "critical";
+  }
+
+  if (evidence.some((entry) => {
+    const status = String(entry?.status || "").toLowerCase();
+    return status.includes("missing") || status.includes("critical") || status.includes("failed") || status.includes("failure");
+  })) {
+    return "critical";
+  }
+
+  if (token.includes("partial")) {
+    return "warning";
+  }
+
+  if (token.includes("high") || token.includes("warning")) {
+    return "warning";
+  }
+
+  if (evidence.some((entry) => {
+    const status = String(entry?.status || "").toLowerCase();
+    return status.includes("partial") || status.includes("high") || status.includes("warning");
+  })) {
+    return "warning";
+  }
+
+  if (token.includes("implemented") || token.includes("pass") || token.includes("success")) {
+    return "success";
+  }
+
+  if (evidence.some((entry) => String(entry?.status || "").toLowerCase() === "implemented")) {
+    return "success";
+  }
+
+  return "warning";
+}
+
+function isScanResultPassing(item) {
+  const response = item || {};
+  const status = String(response?.status || "").toLowerCase();
+  const staticStatus = String(response?.static_status || "").toLowerCase();
+  const evidence = Array.isArray(response?.evidence) ? response.evidence : [];
+  const hasMissing = evidence.some((entry) => {
+    const token = String(entry?.status || "").toLowerCase();
+    return token.includes("missing") || token.includes("critical") || token.includes("failed") || token.includes("failure");
+  });
+  const hasPartial = evidence.some((entry) => String(entry?.status || "").toLowerCase() === "partial");
+
+  if (status === "pass" || status === "passed") {
+    return true;
+  }
+  if (["failed", "failure", "error", "blocked"].includes(status)) {
+    return false;
+  }
+  if (hasMissing || hasPartial) {
+    return false;
+  }
+  if (status === "success") {
+    return staticStatus.includes("implemented") || staticStatus.includes("pass") || staticStatus.includes("success");
+  }
+  if (staticStatus.includes("implemented") || staticStatus.includes("pass") || staticStatus.includes("success")) {
+    return true;
+  }
+  if (evidence.length === 0) {
+    return false;
+  }
+
+  return evidence.every((entry) => String(entry?.status || "").toLowerCase() === "implemented");
+}
+
+function extractScanReportViolation(item) {
+  const response = item || {};
+  const evidence = Array.isArray(response.evidence) ? response.evidence : [];
+  const firstFinding = evidence.find((entry) =>
+    isFilled(entry?.finding) || isFilled(entry?.detail) || isFilled(entry?.description) || isFilled(entry?.issue)
+  );
+  const firstRemediation = evidence.find((entry) =>
+    isFilled(entry?.probable_abuse_path) || isFilled(entry?.required)
+  );
+  const finding =
+    firstFinding?.finding ||
+    firstFinding?.detail ||
+    firstFinding?.description ||
+    firstFinding?.issue ||
+    "Open finding detected, see raw evidence for details.";
+  const remediation = firstRemediation?.probable_abuse_path || firstRemediation?.required || response.remediation || response.required || response.gap;
+
+  const fallbackRemediation = Array.isArray(response.gaps) ? String(response.gaps?.[0] || "") : "";
+
+  return {
+    finding: isFilled(finding) ? String(finding) : "Open finding detected, see raw evidence for details.",
+    remediation: isFilled(remediation)
+      ? String(remediation)
+      : isFilled(fallbackRemediation)
+        ? fallbackRemediation
+        : "Manual review required."
+  };
+}
+
+function summarizeScanResultsFromFolder(sessionDir, sessionId, repoName) {
+  const sessionName = String(sessionDir || "").trim();
+  const normalizedSessionId = String(sessionId || "").trim();
+
+  if (!sessionName) {
+    return {
+      status: "IDLE",
+      severity: "unknown",
+      result: "AWAITING_SCAN_SESSION",
+      action: "WAITING_FOR_SESSION",
+      fail: 0,
+      pass: 0,
+      passRate: NaN,
+      reportId: "NONE",
+      refreshMs: 30000,
+      systemStatus: "IDLE",
+      health: 0,
+      cpu: "--",
+      memory: "--",
+      frameworks: SECURITY_SCAN_REPORT_FALLBACK_FRAMEWORKS,
+      repo: String(repoName || "").trim(),
+      sessionId: normalizedSessionId,
+      ref: "HEAD:main",
+      scanSessionFolder: "NONE",
+      severityIndex: [
+        { label: "CRITICAL_VULN", count: 0, percent: 0, severity: "critical" },
+        { label: "HIGH_VULN", count: 0, percent: 0, severity: "warning" },
+        { label: "LOW_VULN", count: 0, percent: 0, severity: "success" }
+      ],
+      failedMandates: [],
+      passedChecks: [],
+      passedOverflow: 0,
+      notApplicable: [],
+      scanResultFiles: [],
+      scanResultFileCount: 0,
+      sessionToken: normalizedSessionId || "N/A",
+      node: "SG-BETA-01"
+    };
+  }
+
+  return readFileListForDirectory(path.join(SECURITY_SCAN_RESULTS_DIR, sessionName), sessionName, normalizedSessionId, repoName);
+}
+
+async function readFileListForDirectory(folderPath, sessionName, sessionId, repoName) {
+  const entries = await readdir(folderPath, { withFileTypes: true }).catch(() => []);
+  const fileNames = entries
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".json"))
+    .map((entry) => entry.name)
+    .sort()
+    .map((name) => String(name));
+
+  const files = fileNames.map((name) => path.join(folderPath, name));
+
+  const failedMandates = [];
+  const passedChecks = [];
+
+  for (const filePath of files) {
+    const raw = await readFile(filePath, "utf8").catch(() => "");
+    const payload = parseScanResultFileText(raw);
+    if (!payload || typeof payload !== "object") {
+      continue;
+    }
+
+    const response = payload.response && typeof payload.response === "object" ? payload.response : {};
+    const code = String(response.mandate_id || payload.skillName || "unknown").trim();
+    const title = String(response.mandate_title || response.title || "Untitled mandate").trim();
+    const isPassing = isScanResultPassing(response);
+
+    if (!code) {
+      continue;
+    }
+
+    const severity = toScanReportSeverity(response);
+    const { finding, remediation } = extractScanReportViolation(response);
+
+    if (isPassing) {
+      passedChecks.push({
+        code: code.toUpperCase(),
+        title
+      });
+      continue;
+    }
+
+    failedMandates.push({
+      severity,
+      code: code.toUpperCase(),
+      title,
+      violation: `MANDATE EVIDENCE: ${finding}`,
+      required: `REMEDIATION: ${remediation}`,
+      document: response.doc || response.document || "Unknown",
+      section: response.section || response.standard_section || "N/A",
+      reference: payload.skillName || code
+    });
+  }
+
+  const fail = failedMandates.length;
+  const success = passedChecks.length;
+  const totalChecks = Math.max(0, success + fail);
+  const passRate = totalChecks > 0 ? clampRate((success / totalChecks) * 100) : 0;
+  const severityCounts = {
+    critical: 0,
+    warning: 0,
+    success: 0
+  };
+
+  for (const item of failedMandates) {
+    if (item.severity === "critical") {
+      severityCounts.critical += 1;
+    } else if (item.severity === "warning") {
+      severityCounts.warning += 1;
+    } else {
+      severityCounts.success += 1;
+    }
+  }
+
+  const totalFailed = Math.max(1, fail);
+  const severityIndex = [
+    {
+      label: "CRITICAL_VULN",
+      count: severityCounts.critical,
+      percent: clampRate((severityCounts.critical / totalFailed) * 100),
+      severity: "critical"
+    },
+    {
+      label: "HIGH_VULN",
+      count: severityCounts.warning,
+      percent: clampRate((severityCounts.warning / totalFailed) * 100),
+      severity: "warning"
+    },
+    {
+      label: "LOW_VULN",
+      count: severityCounts.success,
+      percent: clampRate((severityCounts.success / totalFailed) * 100),
+      severity: "success"
+    }
+  ];
+
+  const majorStatus = fail > 0 ? "critical" : "success";
+
+  return {
+    refreshMs: 3000,
+    systemStatus: "ONLINE",
+    health: majorStatus === "critical" ? 88 : 100,
+    cpu: "31%",
+    memory: "63%",
+    frameworks: SECURITY_SCAN_REPORT_FALLBACK_FRAMEWORKS,
+    repo: String(repoName || "").trim() || "neural-net-v2",
+    ref: "HEAD:main",
+    reportId: sessionName,
+    sessionId: sessionId || sessionName.split("-").slice(1).join("-"),
+    scanSessionFolder: sessionName,
+    status: majorStatus === "critical" ? "CRITICAL FAILURE" : "COMPLIANCE PASS",
+    severity: majorStatus,
+    result: fail > 0 ? "COMPLIANCE_VIOLATION" : "ALL_CHECKS_PASSED",
+    action: fail > 0 ? "IMMEDIATE_ACTION_REQUIRED" : "CONTINUOUS_MONITORING",
+    timestampUtc: new Date().toISOString(),
+    passRate,
+    success,
+    fail,
+    severityIndex,
+    failedMandates,
+    passedChecks,
+    passedOverflow: 0,
+    notApplicable: [],
+    scanResultFiles: fileNames,
+    scanResultFileCount: fileNames.length,
+    sessionToken: sessionId || "N/A",
+    node: "SG-BETA-01"
+  };
+}
 
 function stripWrappingQuotes(value) {
   if (value.length < 2) {
@@ -840,6 +1165,21 @@ async function handleApi(req, res) {
     writeCorsHeaders(res);
     res.statusCode = 204;
     res.end();
+    return;
+  }
+
+  if (pathname === "/api/scan-report" && req.method === "GET") {
+    const sessionId = firstFilled(requestUrl.searchParams.get("sessionId"));
+    const repoName = firstFilled(requestUrl.searchParams.get("repo"));
+    const folderName = await resolveScanReportSession(sessionId);
+
+    if (!folderName) {
+      sendJson(res, 200, summarizeScanResultsFromFolder("", sessionId, repoName));
+      return;
+    }
+
+    const payload = await summarizeScanResultsFromFolder(folderName, sessionId, repoName);
+    sendJson(res, 200, payload);
     return;
   }
 

@@ -31,7 +31,6 @@
   const DASHBOARD_TERMINAL_STATE_KEY = "neon_guardian_dashboard_terminal_state_v1";
   const SOURCE_TYPE_LOCAL = "local";
   const SOURCE_TYPE_GITHUB = "github";
-  const DASHBOARD_TEST_MAX_SKILLS = 5;
   const LOCAL_SCAN_API_BASE_CANDIDATES = [
     "http://localhost:8080",
     "http://127.0.0.1:8080",
@@ -40,6 +39,7 @@
   ];
   const DASHBOARD_MAX_LIVE_LOGS = 280;
   const DASHBOARD_LOG_POLL_INTERVAL_MS = 1200;
+  const SCAN_REPORT_POLL_INTERVAL_MS = 2500;
   const dashboardLiveTerminalState = {
     entries: 0,
     errors: 0,
@@ -64,6 +64,8 @@
     },
     warnings: 0
   };
+  let scanReportRefreshHandle = null;
+  let lastScanReportContextKey = "";
   hydrateDashboardTerminalStateFromStorage();
 
   initialize().catch(() => {
@@ -79,6 +81,19 @@
     const firstData = await loadPageData(page);
     renderer(firstData && typeof firstData === "object" ? firstData : {});
 
+    if (page === "scan-report") {
+      window.addEventListener("storage", (event) => {
+        if (!event || event.key === SCAN_CONTEXT_KEY || event.key === null) {
+          void syncScanReportState({ fromStorage: true });
+        }
+      });
+      window.addEventListener("neon:scan-context-updated", () => {
+        void syncScanReportState({ fromStorage: true });
+      });
+      await syncScanReportState({ initial: true });
+      return;
+    }
+
     const refreshMs = getPositiveNumber(firstData?.refreshMs, window.NEON_REFRESH_MS, 30000);
     window.setInterval(async () => {
       const nextData = await loadPageData(page);
@@ -89,8 +104,11 @@
   async function loadPageData(pageKey) {
     const configured = defaultEndpoints[pageKey] || [];
     const candidates = [...new Set(configured.filter(Boolean))];
+    const candidateCandidates = pageKey === "scan-report"
+      ? candidates.map((endpoint) => appendScanContextToEndpoint(endpoint))
+      : candidates;
 
-    for (const url of candidates) {
+    for (const url of candidateCandidates) {
       try {
         const response = await fetch(url, {
           cache: "no-store",
@@ -113,6 +131,76 @@
     return null;
   }
 
+  function getScanReportContext() {
+    const scanContext = getStoredScanContext();
+    return {
+      repo: firstFilled(scanContext.activeScanRepo, scanContext.repo),
+      sessionId: firstFilled(scanContext.activeScanSessionId, scanContext.sessionId),
+      status: String(scanContext.activeScanStatus || "").toLowerCase()
+    };
+  }
+
+  function getScanReportContextKey(context) {
+    return `${context.repo || ""}|${context.sessionId || ""}|${context.status || ""}`;
+  }
+
+  function isActiveScanReportContext(context) {
+    const status = String(context?.status || "").toLowerCase();
+    return isFilled(context?.sessionId) && (status === "running" || status === "starting");
+  }
+
+  function appendScanContextToEndpoint(url) {
+    if (!url) {
+      return "";
+    }
+    const query = new URLSearchParams();
+    const context = getScanReportContext();
+    if (isFilled(context.sessionId)) {
+      query.set("sessionId", context.sessionId);
+    }
+    if (isFilled(context.repo)) {
+      query.set("repo", context.repo);
+    }
+
+    const queryString = query.toString();
+    if (!queryString) {
+      return url;
+    }
+    return `${url}${url.includes("?") ? "&" : "?"}${queryString}`;
+  }
+
+  async function syncScanReportState(options = {}) {
+    const context = getScanReportContext();
+    const contextChanged = options.initial || getScanReportContextKey(context) !== lastScanReportContextKey;
+    const shouldPoll = isActiveScanReportContext(context);
+    const wasPollRunning = scanReportRefreshHandle !== null;
+
+    if (shouldPoll && !wasPollRunning) {
+      scanReportRefreshHandle = window.setInterval(async () => {
+        const nextData = await loadPageData("scan-report");
+        const renderer = renderers["scan-report"];
+        if (renderer && nextData && typeof nextData === "object") {
+          renderer(nextData);
+        }
+      }, SCAN_REPORT_POLL_INTERVAL_MS);
+    }
+
+    if (!shouldPoll && wasPollRunning) {
+      window.clearInterval(scanReportRefreshHandle);
+      scanReportRefreshHandle = null;
+    }
+
+    if (contextChanged) {
+      const nextData = await loadPageData("scan-report");
+      const renderer = renderers["scan-report"];
+      if (renderer && nextData && typeof nextData === "object") {
+        renderer(nextData);
+      }
+    }
+
+    lastScanReportContextKey = getScanReportContextKey(context);
+  }
+
   function getStoredScanContext() {
     try {
       const raw = window.localStorage.getItem(SCAN_CONTEXT_KEY);
@@ -126,6 +214,14 @@
   function storeScanContext(context) {
     try {
       window.localStorage.setItem(SCAN_CONTEXT_KEY, JSON.stringify(context));
+      window.dispatchEvent(
+        new CustomEvent("neon:scan-context-updated", {
+          detail: {
+            source: "live-data",
+            context
+          }
+        })
+      );
     } catch (_error) {
       // Ignore storage errors.
     }
@@ -176,6 +272,35 @@
   }
 
   function hydrateDashboardTerminalStateFromStorage() {
+    const scanContext = getStoredScanContext();
+    const activeSessionId = firstFilled(scanContext.activeScanSessionId);
+    const activeStatus = String(scanContext.activeScanStatus || "").toLowerCase();
+    const hasActiveSession = isFilled(activeSessionId) && isDashboardScanActiveStatus(activeStatus);
+    if (!hasActiveSession) {
+      dashboardLiveTerminalState.entries = 0;
+      dashboardLiveTerminalState.errors = 0;
+      dashboardLiveTerminalState.lastLogId = 0;
+      dashboardLiveTerminalState.logs = [];
+      dashboardLiveTerminalState.progress = normalizeDashboardProgress(null);
+      dashboardLiveTerminalState.runId = "";
+      dashboardLiveTerminalState.sessionId = "";
+      dashboardLiveTerminalState.status = "idle";
+      dashboardLiveTerminalState.warnings = 0;
+      storeDashboardTerminalState({});
+      mergeScanContext({
+        activeScanRepo: "",
+        activeScanRunId: "",
+        activeScanSessionId: "",
+        activeScanStatus: "idle",
+        activeScanTargetInput: "",
+        githubUrl: "",
+        localPath: "",
+        scanTargetPath: "",
+        sessionId: ""
+      });
+      return;
+    }
+
     const stored = getStoredDashboardTerminalState();
     const storedLogs = toArray(stored.logs).map((item) => normalizeDashboardLogEntry(item)).slice(-DASHBOARD_MAX_LIVE_LOGS);
 
@@ -874,18 +999,34 @@
       dashboardLiveTerminalState.status = status;
     }
 
-    if (status === "completed" || status === "failed" || status === "canceled" || status === "stopped") {
+    if (status === "completed" || status === "failed" || status === "canceled" || status === "stopped" || status === "unknown") {
       if (dashboardLiveTerminalState.pollHandle) {
         window.clearInterval(dashboardLiveTerminalState.pollHandle);
         dashboardLiveTerminalState.pollHandle = null;
       }
 
-      mergeScanContext({
-        activeScanSessionId: sessionId,
-        activeScanStatus: status,
-        activeScanRepo: firstFilled(getStoredScanContext().activeScanRepo, getStoredScanContext().repo),
-        activeScanRunId: dashboardLiveTerminalState.runId
-      });
+      if (status === "unknown") {
+        dashboardLiveTerminalState.logs = [];
+        dashboardLiveTerminalState.lastLogId = 0;
+        dashboardLiveTerminalState.runId = "";
+        dashboardLiveTerminalState.sessionId = "";
+        dashboardLiveTerminalState.status = "idle";
+        renderDashboardLogs([]);
+        mergeScanContext({
+          activeScanRepo: "",
+          activeScanRunId: "",
+          activeScanSessionId: "",
+          activeScanStatus: "idle",
+          activeScanTargetInput: ""
+        });
+      } else {
+        mergeScanContext({
+          activeScanSessionId: sessionId,
+          activeScanStatus: status,
+          activeScanRepo: firstFilled(getStoredScanContext().activeScanRepo, getStoredScanContext().repo),
+          activeScanRunId: dashboardLiveTerminalState.runId
+        });
+      }
 
       if (status === "completed") {
         setDashboardSourceStatus("Scan completed. Review logs and generated report artifacts.", "success");
@@ -894,6 +1035,8 @@
         setDashboardSourceStatus(errorMessage, "error");
       } else if (status === "canceled" || status === "stopped") {
         setDashboardSourceStatus("Scan terminated by operator.", "success");
+      } else if (status === "unknown") {
+        setDashboardSourceStatus("No active scan session found. Ready for a new run.", "info");
       }
     } else {
       mergeScanContext({
@@ -1014,19 +1157,24 @@
     localButton.dataset.boundSourceControls = "1";
 
     const storedContext = getStoredScanContext();
+    const isActiveStartupSession = isDashboardScanActiveStatus(storedContext.activeScanStatus);
     const initialSourceType = storedContext.sourceType === SOURCE_TYPE_GITHUB ? SOURCE_TYPE_GITHUB : SOURCE_TYPE_LOCAL;
-    const storedLocalPath = String(storedContext.localPath || "");
-    const storedGitHubUrl = String(storedContext.githubUrl || "");
-    const storedScanTargetPath = String(storedContext.scanTargetPath || "");
+    const storedLocalPath = isActiveStartupSession ? String(storedContext.localPath || "") : "";
+    const storedGitHubUrl = isActiveStartupSession ? String(storedContext.githubUrl || "") : "";
+    const storedScanTargetPath = isActiveStartupSession ? String(storedContext.scanTargetPath || "") : "";
 
     if (localPathInput && isFilled(storedLocalPath)) {
       localPathInput.value = storedLocalPath;
+    } else if (localPathInput) {
+      localPathInput.value = "";
     }
     if (githubUrlInput && isFilled(storedGitHubUrl)) {
       githubUrlInput.value = storedGitHubUrl;
+    } else if (githubUrlInput) {
+      githubUrlInput.value = "";
     }
-    if (targetInput && isFilled(storedScanTargetPath) && targetInput.dataset.userEdited !== "1") {
-      targetInput.value = storedScanTargetPath;
+    if (targetInput && targetInput.dataset.userEdited !== "1") {
+      targetInput.value = isFilled(storedScanTargetPath) ? storedScanTargetPath : firstFilled(data.targetInput, "");
     }
 
     localButton.addEventListener("click", () => {
@@ -1172,8 +1320,7 @@
           sourceType: effectiveSourceType,
           scanPath: resolvedScanPath,
           githubUrl: effectiveSourceType === SOURCE_TYPE_GITHUB ? firstFilled(requestedTargetInput, githubUrl) : "",
-          scanTargetInput: requestedTargetInput,
-          maxSkills: DASHBOARD_TEST_MAX_SKILLS
+          scanTargetInput: requestedTargetInput
         });
 
         const liveSessionId = firstFilled(scanStarted.sessionId, headerContext.sessionId);
@@ -1186,10 +1333,7 @@
           activeScanRunId: firstFilled(scanStarted.runId)
         });
 
-        setDashboardSourceStatus(
-          `Scan started for ${resolvedScanPath}. Streaming live terminal output... (test cap: ${DASHBOARD_TEST_MAX_SKILLS} skills)`,
-          "success"
-        );
+        setDashboardSourceStatus(`Scan started for ${resolvedScanPath}. Streaming live terminal output...`, "success");
       } catch (error) {
         const failureMessage =
           error instanceof Error && isFilled(error.message)
@@ -1635,6 +1779,33 @@
     }
     if (isFilled(data.reportId)) {
       setText("scan-report-id", data.reportId);
+    }
+    if (isFilled(data.scanSessionFolder)) {
+      setText("scan-session-folder", data.scanSessionFolder);
+    } else {
+      setText("scan-session-folder", "--");
+    }
+
+    const scanResultFiles = toArray(data.scanResultFiles);
+    setText(
+      "scan-result-file-count",
+      `${Number.isFinite(Number(data.scanResultFileCount)) ? Number(data.scanResultFileCount) : scanResultFiles.length} files`
+    );
+
+    const scanResultFilesRoot = byId("scan-result-files");
+    if (scanResultFilesRoot) {
+      scanResultFilesRoot.innerHTML = scanResultFiles.length > 0
+        ? scanResultFiles
+          .map((fileName) => `
+            <div class="bg-surface/30 border border-border px-2.5 py-2 flex items-center justify-between hover:border-primary/50 transition-colors">
+              <div class="flex items-center gap-2 text-text-main">
+                <span class="material-symbols-outlined text-[14px] text-primary">description</span>
+                <span class="text-[10px] font-mono uppercase">${escapeHtml(fileName)}</span>
+              </div>
+              <span class="text-[8px] text-text-muted">JSON</span>
+            </div>
+          `).join("")
+        : `<div class="text-text-muted text-[10px] font-mono">No result files available for this session.</div>`;
     }
 
     const failedMandates = toArray(data.failedMandates);
