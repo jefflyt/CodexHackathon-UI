@@ -191,26 +191,37 @@
 <label class="font-mono text-[10px] font-bold text-primary uppercase tracking-widest">Select Target Infrastructure</label>
 <span class="font-mono text-[10px] text-text-muted uppercase" id="dashboard-protocol">Protocol: SSH/HTTPS</span>
 </div>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+<button class="border border-primary/40 bg-primary/10 px-4 py-2 text-[10px] font-mono font-bold uppercase tracking-widest text-primary hover:bg-primary/20 transition-colors" id="dashboard-source-local" type="button">
+                        Local Drive
+                    </button>
+<button class="border border-border px-4 py-2 text-[10px] font-mono font-bold uppercase tracking-widest text-text-muted hover:text-text-main hover:border-primary/40 transition-colors" id="dashboard-source-github" type="button">
+                        GitHub Repo URL
+                    </button>
+</div>
+<div class="border border-border bg-black/50 p-4 space-y-4" id="dashboard-local-source-panel">
+<div class="flex items-center justify-between gap-4">
+<label class="font-mono text-[10px] font-bold uppercase tracking-widest text-text-muted">Local Folder Path</label>
+<button class="border border-primary/40 px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-widest text-primary hover:bg-primary/20 transition-colors" id="dashboard-select-local-folder" type="button">
+                            Browse
+                        </button>
+</div>
+<input class="w-full bg-background border border-border focus:border-primary text-text-main font-code text-xs px-3 py-2 focus:ring-0" id="dashboard-local-path-input" placeholder="/path/to/project" readonly="" type="text"/>
+<input class="hidden" directory="" id="dashboard-local-folder-picker" multiple="" type="file" webkitdirectory=""/>
+</div>
+<div class="hidden border border-border bg-black/50 p-4 space-y-2" id="dashboard-github-source-panel">
+<label class="font-mono text-[10px] font-bold uppercase tracking-widest text-text-muted">GitHub Repository URL</label>
+<input class="w-full bg-background border border-border focus:border-primary text-text-main font-code text-xs px-3 py-2 focus:ring-0 placeholder-text-muted" id="dashboard-github-url-input" placeholder="https://github.com/org/repo.git" type="url"/>
+<p class="font-mono text-[9px] uppercase tracking-wide text-text-muted">
+                        Repo URL will be cloned to a temporary folder before scanning.
+                    </p>
+</div>
 <div class="relative group">
 <div class="absolute -inset-0.5 bg-primary/20 opacity-0 group-focus-within:opacity-100 transition duration-500"></div>
 <div class="relative flex items-center bg-black border border-border group-focus-within:border-primary transition-all p-6">
 <span class="text-primary font-mono text-lg mr-4">&gt;&gt;&gt;</span>
-<input class="flex-1 bg-transparent border-none outline-none focus:ring-0 text-text-main font-mono text-xl placeholder-text-muted" id="dashboard-target-input" placeholder="TYPE_TARGET_NAME" type="text" value="repository: neural-net-v2-production"/>
+<input class="flex-1 bg-transparent border-none outline-none focus:ring-0 text-text-main font-mono text-xl placeholder-text-muted" id="dashboard-target-input" placeholder="RESOLVED_SCAN_TARGET" type="text" value="repository: neural-net-v2-production"/>
 <div class="w-3 h-7 bg-primary cursor-blink ml-2"></div>
-</div>
-</div>
-<div class="grid grid-cols-3 gap-4 pt-2" id="dashboard-targets-list">
-<div class="border border-primary bg-primary/5 p-3 cursor-pointer">
-<p class="text-[10px] font-mono text-primary font-bold">neural-net-v2</p>
-<p class="text-[9px] font-code text-text-muted mt-1">Status: Ready</p>
-</div>
-<div class="border border-border p-3 opacity-60 hover:opacity-100 transition-all cursor-pointer">
-<p class="text-[10px] font-mono text-text-main">llm-tokenizer-x</p>
-<p class="text-[9px] font-code text-text-muted mt-1">Status: Standby</p>
-</div>
-<div class="border border-border p-3 opacity-60 hover:opacity-100 transition-all cursor-pointer">
-<p class="text-[10px] font-mono text-text-main">payment-gw-ai</p>
-<p class="text-[9px] font-code text-text-muted mt-1">Status: Critical Failure</p>
 </div>
 </div>
 </div>
@@ -224,6 +235,9 @@
 </button>
 <p class="text-center mt-3 font-mono text-[10px] text-text-muted uppercase tracking-widest">
                         Initiate comprehensive compliance audit v2.4.0
+                    </p>
+<p class="text-center mt-2 font-mono text-[10px] text-text-muted uppercase tracking-widest" id="dashboard-source-status">
+                        Source not prepared
                     </p>
 </div>
 </section>

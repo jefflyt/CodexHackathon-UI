@@ -28,6 +28,8 @@
     "scan-report": renderScanReport
   };
   const SCAN_CONTEXT_KEY = "neon_guardian_scan_context_v1";
+  const SOURCE_TYPE_LOCAL = "local";
+  const SOURCE_TYPE_GITHUB = "github";
 
   initialize().catch(() => {
     // Keep static HTML as fallback if live data fails.
@@ -40,16 +42,12 @@
     }
 
     const firstData = await loadPageData(page);
-    if (firstData) {
-      renderer(firstData);
-    }
+    renderer(firstData && typeof firstData === "object" ? firstData : {});
 
     const refreshMs = getPositiveNumber(firstData?.refreshMs, window.NEON_REFRESH_MS, 30000);
     window.setInterval(async () => {
       const nextData = await loadPageData(page);
-      if (nextData) {
-        renderer(nextData);
-      }
+      renderer(nextData && typeof nextData === "object" ? nextData : {});
     }, refreshMs);
   }
 
@@ -98,6 +96,17 @@
     }
   }
 
+  function mergeScanContext(nextFields) {
+    const current = getStoredScanContext();
+    const next = {
+      ...current,
+      ...(nextFields && typeof nextFields === "object" ? nextFields : {}),
+      updatedAt: new Date().toISOString()
+    };
+    storeScanContext(next);
+    return next;
+  }
+
   function normalizeRepoName(value) {
     if (!isFilled(value)) {
       return "";
@@ -127,6 +136,7 @@
       (forceNewSession || repoChanged || !isFilled(context.sessionId) ? generateSessionId(repo) : String(context.sessionId));
 
     const nextContext = {
+      ...context,
       repo,
       sessionId,
       updatedAt: new Date().toISOString()
@@ -143,49 +153,46 @@
   }
 
   function renderDashboard(data) {
-    if (!data || typeof data !== "object") {
-      return;
-    }
+    const sourceData = data && typeof data === "object" ? data : {};
 
-    const systemStatus = toUpper(data.systemStatus);
+    const systemStatus = toUpper(sourceData.systemStatus);
     if (systemStatus) {
       setText("dashboard-system-status", `SYSTEM_STATUS: ${systemStatus}`);
     }
 
-    if (isFilled(data.uplinkStatus)) {
-      setText("dashboard-uplink-status", `Uplink: ${data.uplinkStatus}`);
+    if (isFilled(sourceData.uplinkStatus)) {
+      setText("dashboard-uplink-status", `Uplink: ${sourceData.uplinkStatus}`);
     }
-    if (isFilled(data.node)) {
-      setText("dashboard-node", data.node);
+    if (isFilled(sourceData.node)) {
+      setText("dashboard-node", sourceData.node);
     }
-    if (isFilled(data.latency)) {
-      setText("dashboard-latency", data.latency);
+    if (isFilled(sourceData.latency)) {
+      setText("dashboard-latency", sourceData.latency);
     }
-    if (isFilled(data.user)) {
-      setText("dashboard-operator", data.user);
+    if (isFilled(sourceData.user)) {
+      setText("dashboard-operator", sourceData.user);
     }
-    if (isFilled(data.protocol)) {
-      setText("dashboard-protocol", `Protocol: ${data.protocol}`);
+    if (isFilled(sourceData.protocol)) {
+      setText("dashboard-protocol", `Protocol: ${sourceData.protocol}`);
     }
 
     const targetInput = byId("dashboard-target-input");
-    if (targetInput && isFilled(data.targetInput)) {
-      targetInput.value = data.targetInput;
-    }
-
-    const repoFromDashboard = normalizeRepoName(data.repo || targetInput?.value || data.targetInput);
-    applyHeaderScanContext("dashboard-header-repo", "dashboard-session-id", repoFromDashboard, data.sessionId, false);
-
-    const executeScanButton = byId("dashboard-execute-scan");
-    if (executeScanButton && !executeScanButton.dataset.boundSessionGenerator) {
-      executeScanButton.dataset.boundSessionGenerator = "1";
-      executeScanButton.addEventListener("click", () => {
-        const latestRepo = normalizeRepoName(byId("dashboard-target-input")?.value || repoFromDashboard);
-        applyHeaderScanContext("dashboard-header-repo", "dashboard-session-id", latestRepo, "", true);
+    if (targetInput && !targetInput.dataset.boundUserInputTracker) {
+      targetInput.dataset.boundUserInputTracker = "1";
+      targetInput.addEventListener("input", () => {
+        targetInput.dataset.userEdited = "1";
       });
     }
+    if (targetInput && isFilled(sourceData.targetInput) && targetInput.dataset.userEdited !== "1") {
+      targetInput.value = sourceData.targetInput;
+    }
 
-    const frameworks = toArray(data.frameworks);
+    const storedContext = getStoredScanContext();
+    const repoFromDashboard = normalizeRepoName(storedContext.repo || sourceData.repo || targetInput?.value || sourceData.targetInput);
+    applyHeaderScanContext("dashboard-header-repo", "dashboard-session-id", repoFromDashboard, sourceData.sessionId, false);
+    initializeDashboardSourceControls(sourceData, targetInput, repoFromDashboard);
+
+    const frameworks = toArray(sourceData.frameworks);
     const frameworkList = byId("dashboard-framework-list");
     if (frameworkList && frameworks.length > 0) {
       frameworkList.innerHTML = frameworks
@@ -211,32 +218,7 @@
         .join("");
     }
 
-    const targets = toArray(data.targets);
-    const targetList = byId("dashboard-targets-list");
-    if (targetList && targets.length > 0) {
-      targetList.innerHTML = targets
-        .map((target) => {
-          const selected = target.selected === true;
-          const status = String(target.status || "UNKNOWN");
-          const statusClass = getStatusTextClass(status);
-          const cardClass = selected
-            ? "border border-primary bg-primary/5 p-3 cursor-pointer"
-            : "border border-border p-3 opacity-60 hover:opacity-100 transition-all cursor-pointer";
-          const titleClass = selected
-            ? "text-[10px] font-mono text-primary font-bold"
-            : "text-[10px] font-mono text-text-main";
-
-          return `
-            <div class="${cardClass}">
-              <p class="${titleClass}">${escapeHtml(target.name || "unnamed-target")}</p>
-              <p class="text-[9px] font-code mt-1 ${statusClass}">Status: ${escapeHtml(status)}</p>
-            </div>
-          `;
-        })
-        .join("");
-    }
-
-    const logs = toArray(data.logs);
+    const logs = toArray(sourceData.logs);
     const logsList = byId("dashboard-logs-list");
     if (logsList && logs.length > 0) {
       logsList.innerHTML = `${logs
@@ -262,20 +244,20 @@
         </div>`;
     }
 
-    if (data.summary && typeof data.summary === "object") {
-      if (Number.isFinite(Number(data.summary.entries))) {
-        setText("dashboard-log-entries", `ENTRIES: ${Number(data.summary.entries).toLocaleString("en-US")}`);
+    if (sourceData.summary && typeof sourceData.summary === "object") {
+      if (Number.isFinite(Number(sourceData.summary.entries))) {
+        setText("dashboard-log-entries", `ENTRIES: ${Number(sourceData.summary.entries).toLocaleString("en-US")}`);
       }
-      if (Number.isFinite(Number(data.summary.errors))) {
-        setText("dashboard-log-errors", `ERRORS: ${Number(data.summary.errors).toLocaleString("en-US")}`);
+      if (Number.isFinite(Number(sourceData.summary.errors))) {
+        setText("dashboard-log-errors", `ERRORS: ${Number(sourceData.summary.errors).toLocaleString("en-US")}`);
       }
-      if (Number.isFinite(Number(data.summary.warnings))) {
-        setText("dashboard-log-warnings", `WARNINGS: ${Number(data.summary.warnings).toLocaleString("en-US")}`);
+      if (Number.isFinite(Number(sourceData.summary.warnings))) {
+        setText("dashboard-log-warnings", `WARNINGS: ${Number(sourceData.summary.warnings).toLocaleString("en-US")}`);
       }
     }
 
     const threatFeed = byId("dashboard-threat-feed");
-    const threats = toArray(data.threats);
+    const threats = toArray(sourceData.threats);
     if (threatFeed && threats.length > 0) {
       threatFeed.innerHTML = threats
         .map((threat) => {
@@ -287,6 +269,431 @@
         })
         .join(" --- ");
     }
+  }
+
+  function initializeDashboardSourceControls(data, targetInput, fallbackRepo) {
+    const localButton = byId("dashboard-source-local");
+    const githubButton = byId("dashboard-source-github");
+    const localPanel = byId("dashboard-local-source-panel");
+    const githubPanel = byId("dashboard-github-source-panel");
+    const localPathInput = byId("dashboard-local-path-input");
+    const githubUrlInput = byId("dashboard-github-url-input");
+    const folderPicker = byId("dashboard-local-folder-picker");
+    const folderButton = byId("dashboard-select-local-folder");
+    const executeScanButton = byId("dashboard-execute-scan");
+    if (!localButton || !githubButton || !localPanel || !githubPanel || !executeScanButton) {
+      return;
+    }
+
+    const setActiveSourceMode = (nextSourceType, persist) => {
+      const activeSourceType = nextSourceType === SOURCE_TYPE_GITHUB ? SOURCE_TYPE_GITHUB : SOURCE_TYPE_LOCAL;
+      localButton.dataset.sourceType = activeSourceType;
+
+      localPanel.classList.toggle("hidden", activeSourceType !== SOURCE_TYPE_LOCAL);
+      githubPanel.classList.toggle("hidden", activeSourceType !== SOURCE_TYPE_GITHUB);
+
+      localButton.classList.toggle("border-primary/40", activeSourceType === SOURCE_TYPE_LOCAL);
+      localButton.classList.toggle("bg-primary/10", activeSourceType === SOURCE_TYPE_LOCAL);
+      localButton.classList.toggle("text-primary", activeSourceType === SOURCE_TYPE_LOCAL);
+      localButton.classList.toggle("border-border", activeSourceType !== SOURCE_TYPE_LOCAL);
+      localButton.classList.toggle("text-text-muted", activeSourceType !== SOURCE_TYPE_LOCAL);
+
+      githubButton.classList.toggle("border-primary/40", activeSourceType === SOURCE_TYPE_GITHUB);
+      githubButton.classList.toggle("bg-primary/10", activeSourceType === SOURCE_TYPE_GITHUB);
+      githubButton.classList.toggle("text-primary", activeSourceType === SOURCE_TYPE_GITHUB);
+      githubButton.classList.toggle("border-border", activeSourceType !== SOURCE_TYPE_GITHUB);
+      githubButton.classList.toggle("text-text-muted", activeSourceType !== SOURCE_TYPE_GITHUB);
+
+      if (persist) {
+        mergeScanContext({ sourceType: activeSourceType });
+      }
+
+      if (targetInput && targetInput.dataset.userEdited !== "1") {
+        const nextTargetValue =
+          activeSourceType === SOURCE_TYPE_GITHUB
+            ? String(githubUrlInput?.value || "")
+            : String(localPathInput?.value || "");
+        if (isFilled(nextTargetValue)) {
+          targetInput.value = nextTargetValue;
+        } else if (isFilled(data.targetInput)) {
+          targetInput.value = data.targetInput;
+        }
+      }
+
+      const modeText =
+        activeSourceType === SOURCE_TYPE_GITHUB
+          ? "GitHub mode active. Repository will be cloned to temporary folder before scan."
+          : "Local mode active. Select a local folder to scan.";
+      setDashboardSourceStatus(modeText, "info");
+    };
+
+    if (localButton.dataset.boundSourceControls === "1") {
+      return;
+    }
+    localButton.dataset.boundSourceControls = "1";
+
+    const storedContext = getStoredScanContext();
+    const initialSourceType = storedContext.sourceType === SOURCE_TYPE_GITHUB ? SOURCE_TYPE_GITHUB : SOURCE_TYPE_LOCAL;
+    const storedLocalPath = String(storedContext.localPath || "");
+    const storedGitHubUrl = String(storedContext.githubUrl || "");
+    const storedScanTargetPath = String(storedContext.scanTargetPath || "");
+
+    if (localPathInput && isFilled(storedLocalPath)) {
+      localPathInput.value = storedLocalPath;
+    }
+    if (githubUrlInput && isFilled(storedGitHubUrl)) {
+      githubUrlInput.value = storedGitHubUrl;
+    }
+    if (targetInput && isFilled(storedScanTargetPath) && targetInput.dataset.userEdited !== "1") {
+      targetInput.value = storedScanTargetPath;
+    }
+
+    localButton.addEventListener("click", () => {
+      setActiveSourceMode(SOURCE_TYPE_LOCAL, true);
+    });
+    githubButton.addEventListener("click", () => {
+      setActiveSourceMode(SOURCE_TYPE_GITHUB, true);
+    });
+
+    if (folderButton && folderPicker) {
+      folderButton.addEventListener("click", () => {
+        folderPicker.click();
+      });
+      folderPicker.addEventListener("change", () => {
+        const files = Array.from(folderPicker.files || []);
+        const localPath = resolveLocalDirectoryPath(files);
+        if (!isFilled(localPath)) {
+          setDashboardSourceStatus("Unable to resolve selected folder path.", "error");
+          return;
+        }
+
+        if (localPathInput) {
+          localPathInput.value = localPath;
+        }
+        if (targetInput) {
+          targetInput.value = localPath;
+          targetInput.dataset.userEdited = "1";
+        }
+
+        const folderRepo = normalizeRepoName(getPathBasename(localPath) || fallbackRepo || data.targetInput);
+        applyHeaderScanContext("dashboard-header-repo", "dashboard-session-id", folderRepo, "", false);
+        mergeScanContext({
+          sourceType: SOURCE_TYPE_LOCAL,
+          localPath,
+          scanTargetPath: localPath
+        });
+        setActiveSourceMode(SOURCE_TYPE_LOCAL, false);
+        setDashboardSourceStatus(`Local folder selected: ${localPath}`, "success");
+      });
+    }
+
+    if (githubUrlInput) {
+      githubUrlInput.addEventListener("input", () => {
+        githubUrlInput.dataset.userEdited = "1";
+        const githubUrl = String(githubUrlInput.value || "").trim();
+        mergeScanContext({
+          sourceType: SOURCE_TYPE_GITHUB,
+          githubUrl
+        });
+
+        if (targetInput && localButton.dataset.sourceType === SOURCE_TYPE_GITHUB) {
+          targetInput.value = githubUrl;
+          targetInput.dataset.userEdited = "1";
+        }
+
+        const repoFromUrl = extractRepoNameFromGitHubUrl(githubUrl);
+        if (isFilled(repoFromUrl)) {
+          applyHeaderScanContext("dashboard-header-repo", "dashboard-session-id", repoFromUrl, "", false);
+        }
+      });
+    }
+
+    executeScanButton.addEventListener("click", async () => {
+      if (executeScanButton.dataset.scanInProgress === "1") {
+        return;
+      }
+
+      const selectedSourceType =
+        localButton.dataset.sourceType === SOURCE_TYPE_GITHUB ? SOURCE_TYPE_GITHUB : SOURCE_TYPE_LOCAL;
+      const localPath = String(localPathInput?.value || "").trim();
+      const githubUrl = String(githubUrlInput?.value || "").trim();
+
+      if (selectedSourceType === SOURCE_TYPE_LOCAL && !isFilled(localPath)) {
+        setDashboardSourceStatus("Select a local folder before running scan.", "error");
+        return;
+      }
+      if (selectedSourceType === SOURCE_TYPE_GITHUB && !isGitHubRepoUrl(githubUrl)) {
+        setDashboardSourceStatus("Enter a valid GitHub repository URL before running scan.", "error");
+        return;
+      }
+
+      executeScanButton.dataset.scanInProgress = "1";
+      executeScanButton.disabled = true;
+      executeScanButton.classList.add("opacity-70", "cursor-not-allowed");
+
+      try {
+        const preparingMessage =
+          selectedSourceType === SOURCE_TYPE_GITHUB
+            ? "Cloning GitHub repository to temporary folder..."
+            : "Preparing local folder for scan...";
+        setDashboardSourceStatus(preparingMessage, "info");
+
+        const prepared = await prepareDashboardScanSource(selectedSourceType, {
+          localPath,
+          githubUrl
+        });
+        const resolvedScanPath = String(prepared.scanPath || "").trim();
+        if (!isFilled(resolvedScanPath)) {
+          throw new Error("Unable to resolve scan target path.");
+        }
+
+        if (targetInput) {
+          targetInput.value = resolvedScanPath;
+          targetInput.dataset.userEdited = "1";
+        }
+
+        const resolvedRepo = normalizeRepoName(
+          prepared.repo ||
+            extractRepoNameFromGitHubUrl(githubUrl) ||
+            getPathBasename(resolvedScanPath) ||
+            fallbackRepo ||
+            data.targetInput ||
+            "unknown-repo"
+        );
+
+        const headerContext = applyHeaderScanContext("dashboard-header-repo", "dashboard-session-id", resolvedRepo, "", true);
+        mergeScanContext({
+          ...headerContext,
+          sourceType: selectedSourceType,
+          githubUrl: selectedSourceType === SOURCE_TYPE_GITHUB ? githubUrl : "",
+          localPath: selectedSourceType === SOURCE_TYPE_LOCAL ? resolvedScanPath : localPath,
+          scanTargetPath: resolvedScanPath
+        });
+
+        const scanStarted = await dispatchDashboardScanStart({
+          sessionId: headerContext.sessionId,
+          repo: headerContext.repo,
+          sourceType: selectedSourceType,
+          scanPath: resolvedScanPath,
+          githubUrl: selectedSourceType === SOURCE_TYPE_GITHUB ? githubUrl : ""
+        });
+
+        const completionMessage = scanStarted
+          ? `Scan started for ${resolvedScanPath}`
+          : `Scan target ready: ${resolvedScanPath}`;
+        setDashboardSourceStatus(completionMessage, "success");
+      } catch (error) {
+        const failureMessage =
+          error instanceof Error && isFilled(error.message)
+            ? error.message
+            : "Scan preparation failed. Check source configuration.";
+        setDashboardSourceStatus(failureMessage, "error");
+      } finally {
+        executeScanButton.dataset.scanInProgress = "0";
+        executeScanButton.disabled = false;
+        executeScanButton.classList.remove("opacity-70", "cursor-not-allowed");
+      }
+    });
+
+    setActiveSourceMode(initialSourceType, false);
+  }
+
+  async function prepareDashboardScanSource(sourceType, input) {
+    if (sourceType === SOURCE_TYPE_GITHUB) {
+      return prepareGitHubScanSource(input.githubUrl);
+    }
+
+    if (!isFilled(input.localPath)) {
+      throw new Error("Select a local folder before running scan.");
+    }
+
+    return {
+      scanPath: String(input.localPath).trim(),
+      repo: getPathBasename(input.localPath)
+    };
+  }
+
+  async function prepareGitHubScanSource(repoUrl) {
+    if (!isGitHubRepoUrl(repoUrl)) {
+      throw new Error("GitHub URL must look like https://github.com/org/repo(.git).");
+    }
+
+    const response = await postJsonToCandidateEndpoints(
+      [
+        window.NEON_SCAN_ENDPOINTS?.prepareSource,
+        window.NEON_SCAN_ENDPOINTS?.prepare,
+        window.NEON_DATA_ENDPOINTS?.prepareSource,
+        "/api/scan/prepare-source",
+        "/api/scan/prepare"
+      ],
+      {
+        sourceType: SOURCE_TYPE_GITHUB,
+        repoUrl: String(repoUrl).trim(),
+        cloneToTemp: true
+      }
+    );
+
+    if (!response || !response.body || typeof response.body !== "object") {
+      throw new Error("Backend clone endpoint is unavailable. Configure /api/scan/prepare-source.");
+    }
+
+    const scanPath = firstFilled(
+      response.body.scanPath,
+      response.body.targetPath,
+      response.body.path,
+      response.body.tempPath,
+      response.body.localPath
+    );
+    if (!isFilled(scanPath)) {
+      throw new Error("GitHub repo was prepared, but no temp scan path was returned.");
+    }
+
+    return {
+      scanPath: String(scanPath),
+      repo: firstFilled(response.body.repo, extractRepoNameFromGitHubUrl(repoUrl))
+    };
+  }
+
+  async function dispatchDashboardScanStart(payload) {
+    const response = await postJsonToCandidateEndpoints(
+      [
+        window.NEON_SCAN_ENDPOINTS?.start,
+        window.NEON_SCAN_ENDPOINTS?.execute,
+        window.NEON_DATA_ENDPOINTS?.scanStart,
+        "/api/scan/start",
+        "/api/scan/execute"
+      ],
+      payload
+    );
+    return Boolean(response);
+  }
+
+  async function postJsonToCandidateEndpoints(candidates, body) {
+    const uniqueCandidates = [...new Set(toArray(candidates).filter(Boolean))];
+    for (const url of uniqueCandidates) {
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json"
+          },
+          body: JSON.stringify(body)
+        });
+        if (!response.ok) {
+          continue;
+        }
+
+        const contentType = response.headers.get("content-type") || "";
+        const payload = contentType.includes("application/json")
+          ? await response.json()
+          : { message: await response.text() };
+        return {
+          url,
+          body: payload
+        };
+      } catch (_error) {
+        // Try next endpoint.
+      }
+    }
+    return null;
+  }
+
+  function isGitHubRepoUrl(value) {
+    if (!isFilled(value)) {
+      return false;
+    }
+    const pattern = /^https:\/\/github\.com\/[^/\s]+\/[^/\s]+(?:\.git)?\/?$/i;
+    return pattern.test(String(value).trim());
+  }
+
+  function extractRepoNameFromGitHubUrl(value) {
+    if (!isFilled(value)) {
+      return "";
+    }
+    try {
+      const parsed = new URL(String(value).trim());
+      if (!parsed.hostname.toLowerCase().includes("github.com")) {
+        return "";
+      }
+      const segments = parsed.pathname.split("/").filter(Boolean);
+      if (segments.length < 2) {
+        return "";
+      }
+      return normalizeRepoName(segments[1].replace(/\.git$/i, ""));
+    } catch (_error) {
+      return "";
+    }
+  }
+
+  function getPathBasename(pathValue) {
+    if (!isFilled(pathValue)) {
+      return "";
+    }
+    const normalized = String(pathValue).trim().replace(/[\\/]+$/, "");
+    const segments = normalized.split(/[\\/]/).filter(Boolean);
+    return segments.length > 0 ? segments[segments.length - 1] : "";
+  }
+
+  function resolveLocalDirectoryPath(files) {
+    const fileList = toArray(files);
+    if (fileList.length === 0) {
+      return "";
+    }
+
+    const firstFile = fileList[0];
+    const relativePath = String(firstFile.webkitRelativePath || "").replace(/\\/g, "/");
+    const relativeSegments = relativePath.split("/").filter(Boolean);
+    const rootFolder = relativeSegments[0] || "";
+    const absoluteFilePath = isFilled(firstFile.path) ? String(firstFile.path).replace(/\\/g, "/") : "";
+
+    if (isFilled(absoluteFilePath) && relativeSegments.length > 0) {
+      const relativeSuffix = relativeSegments.join("/");
+      if (absoluteFilePath.endsWith(relativeSuffix)) {
+        const basePath = absoluteFilePath.slice(0, absoluteFilePath.length - relativeSuffix.length).replace(/[\\/]+$/, "");
+        return isFilled(rootFolder) ? `${basePath}/${rootFolder}` : basePath;
+      }
+    }
+
+    if (isFilled(absoluteFilePath)) {
+      const withoutFileName = absoluteFilePath.replace(/\/[^/]+$/, "");
+      return withoutFileName;
+    }
+
+    return rootFolder;
+  }
+
+  function setDashboardSourceStatus(message, tone) {
+    const status = byId("dashboard-source-status");
+    if (!status) {
+      return;
+    }
+
+    status.textContent = isFilled(message) ? String(message) : "Source status unavailable";
+    status.classList.remove("text-text-muted", "text-primary", "text-success", "text-critical");
+
+    if (tone === "success") {
+      status.classList.add("text-success");
+      return;
+    }
+    if (tone === "error") {
+      status.classList.add("text-critical");
+      return;
+    }
+    if (tone === "info") {
+      status.classList.add("text-primary");
+      return;
+    }
+    status.classList.add("text-text-muted");
+  }
+
+  function firstFilled(...values) {
+    for (const value of values) {
+      if (isFilled(value)) {
+        return String(value).trim();
+      }
+    }
+    return "";
   }
 
   function renderCodex(data) {
@@ -467,24 +874,27 @@
       setText("scan-report-id", data.reportId);
     }
 
-    if (isFilled(data.status)) {
-      setText("scan-status-title", data.status);
-    }
+    const failedMandates = toArray(data.failedMandates);
+    const rawPassRate = Number(data.passRate);
+    const passRate = Number.isFinite(rawPassRate) ? Math.max(0, Math.min(100, rawPassRate)) : NaN;
+    const rawFailCount = Number(data.fail);
+    const derivedFailCount = Number.isFinite(rawFailCount) ? Math.max(0, Math.round(rawFailCount)) : failedMandates.length;
 
-    const result = toUpper(data.result);
-    const action = toUpper(data.action || "IMMEDIATE_ACTION_REQUIRED");
-    if (result) {
-      setText("scan-status-subtitle", `// SCAN_RESULT: ${result} // ${action}`);
-    }
-
-    if (isFilled(data.timestampUtc)) {
-      setText("scan-timestamp", data.timestampUtc);
-    }
-
-    const bannerTone = getTone(data.severity || data.status);
+    const bannerTone = getTone(data.severity || data.status || (derivedFailCount > 0 ? "critical" : "success"));
     styleScanBanner(bannerTone);
 
-    const passRate = Math.max(0, Math.min(100, Number(data.passRate)));
+    const computedTitle = buildScanStatusTitle(data, failedMandates, derivedFailCount);
+    if (isFilled(computedTitle)) {
+      setText("scan-status-title", computedTitle);
+    }
+
+    const computedSubtitle = buildScanStatusSubtitle(data, derivedFailCount, passRate);
+    if (isFilled(computedSubtitle)) {
+      setText("scan-status-subtitle", computedSubtitle);
+    }
+
+    startLiveTimestampClock("scan-timestamp");
+
     if (Number.isFinite(passRate)) {
       setText("scan-pass-rate", `${Math.round(passRate)}%`);
       const circle = byId("scan-pass-rate-circle");
@@ -500,9 +910,7 @@
     if (Number.isFinite(Number(data.success))) {
       setText("scan-success-count", String(data.success));
     }
-    if (Number.isFinite(Number(data.fail))) {
-      setText("scan-fail-count", String(data.fail).padStart(2, "0"));
-    }
+    setText("scan-fail-count", String(derivedFailCount).padStart(2, "0"));
 
     const severityIndex = toArray(data.severityIndex);
     const severityIndexRoot = byId("scan-severity-index");
@@ -526,7 +934,6 @@
         .join("");
     }
 
-    const failedMandates = toArray(data.failedMandates);
     const failedRoot = byId("scan-failed-mandates-list");
     if (failedRoot && failedMandates.length > 0) {
       failedRoot.innerHTML = failedMandates.map((item) => renderFailedMandate(item)).join("");
@@ -593,6 +1000,49 @@
       ? repoFromScanReport
       : normalizeRepoName(storedContext.repo) || repoFromScanReport;
     applyHeaderScanContext("scan-repo", "scan-session-id", preferredRepo, data.sessionId, false);
+  }
+
+  function buildScanStatusTitle(data, failedMandates, failCount) {
+    if (isFilled(data.statusTitle)) {
+      return String(data.statusTitle);
+    }
+
+    const criticalCount = failedMandates.filter((item) => String(item?.severity || "").toLowerCase().includes("critical")).length;
+    if (failCount <= 0) {
+      return "COMPLIANCE CHECKS PASSED";
+    }
+    if (criticalCount > 0) {
+      return "CRITICAL MANDATES REQUIRE ACTION";
+    }
+    if (failCount > 0) {
+      return `${failCount} MANDATES REQUIRE REVIEW`;
+    }
+    return "LIVE COMPLIANCE POSTURE";
+  }
+
+  function buildScanStatusSubtitle(data, failCount, passRate) {
+    const result = toUpper(data.result || (failCount > 0 ? "MANDATE_GAPS_FOUND" : "ALL_CHECKS_PASSED"));
+    const action = toUpper(data.action || (failCount > 0 ? "REMEDIATION_IN_PROGRESS" : "CONTINUOUS_MONITORING"));
+    const passRateToken = Number.isFinite(passRate) ? `${Math.round(passRate)}%` : "--";
+    return `// RESULT: ${result} // OPEN_MANDATES: ${failCount} // PASS_RATE: ${passRateToken} // ${action}`;
+  }
+
+  function startLiveTimestampClock(elementId) {
+    const timestampNode = byId(elementId);
+    if (!timestampNode) {
+      return;
+    }
+
+    const updateTimestamp = () => {
+      timestampNode.textContent = formatUtcTimestamp(new Date());
+    };
+
+    if (!timestampNode.dataset.liveClockBound) {
+      timestampNode.dataset.liveClockBound = "1";
+      window.setInterval(updateTimestamp, 1000);
+    }
+
+    updateTimestamp();
   }
 
   function renderCodexSection(section, index) {
@@ -858,6 +1308,21 @@
       return "--:--:--";
     }
     return String(raw).replace(/^\[|\]$/g, "").trim();
+  }
+
+  function formatUtcTimestamp(value) {
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return "--";
+    }
+
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(date.getUTCDate()).padStart(2, "0");
+    const hour = String(date.getUTCHours()).padStart(2, "0");
+    const minute = String(date.getUTCMinutes()).padStart(2, "0");
+    const second = String(date.getUTCSeconds()).padStart(2, "0");
+    return `${year}-${month}-${day}_${hour}:${minute}:${second}`;
   }
 
   function setText(id, value) {
