@@ -1,0 +1,90 @@
+{
+  "refreshMs": 30000,
+  "systemStatus": "ONLINE",
+  "uptime": "42:19:03",
+  "version": "2.4.0_STABLE",
+  "selectedFramework": "NIST AI RMF",
+  "operator": {
+    "name": "ADMIN_01",
+    "avatar": "../assets/compliance-avatar.png"
+  },
+  "activeFrameworks": [
+    { "name": "NIST AI RMF", "version": "v1.0", "active": true },
+    { "name": "EU AI ACT", "version": "DRAFT", "active": true },
+    { "name": "OWASP LLM", "version": "2023", "active": true },
+    { "name": "ISO 42001", "version": "OFF", "active": false }
+  ],
+  "library": [
+    { "name": "NIST AI RMF", "selected": true },
+    { "name": "EU AI ACT", "selected": false },
+    { "name": "OWASP LLM", "selected": false },
+    { "name": "ISO 42001", "selected": false },
+    { "name": "GDPR (AI)", "selected": false }
+  ],
+  "lastSync": "2024-05-12 08:42:11 UTC",
+  "activeRuleset": {
+    "title": "NIST AI RISK MANAGEMENT FRAMEWORK",
+    "description": "A voluntary guidance framework to better manage risks to individuals, organizations, and society associated with artificial intelligence.",
+    "status": "ENFORCED",
+    "mandates": 72
+  },
+  "mandateSections": [
+    {
+      "title": "GOVERN (GOV)",
+      "items": [
+        {
+          "id": "GOV-1.1",
+          "status": "COMPLIANT",
+          "title": "Context Establishment",
+          "lastScan": "2 MINS AGO",
+          "expanded": true,
+          "details": {
+            "description": "Legal and regulatory requirements involving AI are understood, managed, and documented. The organization must maintain an up-to-date registry of all applicable laws.",
+            "evidenceStatus": "VERIFIED",
+            "evidence": [
+              "Found: legal_registry_v4.json ... OK",
+              "Hash: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "Timestamp: 2023-10-27T10:00:00Z ... OK"
+            ],
+            "category": "Legal & Compliance",
+            "priority": "P0 - Critical"
+          }
+        },
+        {
+          "id": "GOV-1.2",
+          "status": "FAILED",
+          "title": "Risk Management Integration",
+          "lastScan": "2 MINS AGO",
+          "expanded": false
+        },
+        {
+          "id": "GOV-1.3",
+          "status": "REVIEW_NEEDED",
+          "title": "AI System Inventory",
+          "lastScan": "2 MINS AGO",
+          "expanded": false
+        }
+      ]
+    },
+    {
+      "title": "MEASURE (MEASURE)",
+      "muted": true,
+      "items": [
+        {
+          "id": "MEASURE-2.1",
+          "status": "COMPLIANT",
+          "title": "Trustworthiness Metrics",
+          "lastScan": "2 MINS AGO",
+          "expanded": false
+        },
+        {
+          "id": "MEASURE-2.2",
+          "status": "COMPLIANT",
+          "title": "System Performance Evaluation",
+          "lastScan": "2 MINS AGO",
+          "expanded": false
+        }
+      ]
+    }
+  ]
+}

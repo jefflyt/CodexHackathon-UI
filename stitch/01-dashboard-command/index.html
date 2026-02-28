@@ -104,7 +104,7 @@
         }
     </style>
 </head>
-<body class="bg-grid-pattern">
+<body class="bg-grid-pattern" data-page="dashboard">
 <div class="scanline"></div>
 <aside class="fixed left-0 top-0 h-full w-64 bg-sidebar-bg z-30 flex flex-col border-r border-cyan-neon shadow-neon-border">
 <div class="p-6 border-b border-border bg-black/20">
@@ -114,20 +114,20 @@
 <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
 <span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
 </span>
-<span class="text-primary font-mono text-xs font-bold tracking-widest">SYSTEM_STATUS: ONLINE</span>
+<span class="text-primary font-mono text-xs font-bold tracking-widest" id="dashboard-system-status">SYSTEM_STATUS: ONLINE</span>
 </div>
 </div>
 <nav class="flex-1 px-3 py-6 space-y-1">
-<a class="group flex items-center gap-3 px-3 py-3 bg-surface border border-primary/30 text-primary hover:bg-primary/10 transition-all" href="#">
+<a class="group flex items-center gap-3 px-3 py-3 bg-surface border border-primary/30 text-primary hover:bg-primary/10 transition-all" href="../01-dashboard-command/index.html">
 <span class="material-symbols-outlined text-lg">dashboard</span>
 <span class="font-mono text-xs font-bold uppercase tracking-wider">DASHBOARD</span>
 <div class="ml-auto w-1 h-1 bg-primary group-hover:shadow-[0_0_5px_#00FF94]"></div>
 </a>
-<a class="group flex items-center gap-3 px-3 py-3 border border-transparent text-text-muted hover:text-text-main hover:border-border hover:bg-surface transition-all" href="#">
+<a class="group flex items-center gap-3 px-3 py-3 border border-transparent text-text-muted hover:text-text-main hover:border-border hover:bg-surface transition-all" href="../02-compliance-codex/index.html">
 <span class="material-symbols-outlined text-lg">security</span>
 <span class="font-mono text-xs font-bold uppercase tracking-wider">COMPLIANCE CODEX</span>
 </a>
-<a class="group flex items-center gap-3 px-3 py-3 border border-transparent text-text-muted hover:text-text-main hover:border-border hover:bg-surface transition-all" href="#">
+<a class="group flex items-center gap-3 px-3 py-3 border border-transparent text-text-muted hover:text-text-main hover:border-border hover:bg-surface transition-all" href="../03-scan-report/index.html">
 <span class="material-symbols-outlined text-lg">summarize</span>
 <span class="font-mono text-xs font-bold uppercase tracking-wider">SCAN REPORTS</span>
 </a>
@@ -136,7 +136,7 @@
 <div class="flex items-center justify-between mb-4">
 <span class="text-[10px] font-mono font-bold text-cyan-neon uppercase tracking-widest border-b border-cyan-neon/30 pb-1 w-full">ACTIVE_FRAMEWORKS</span>
 </div>
-<div class="space-y-3">
+<div class="space-y-3" id="dashboard-framework-list">
 <div class="flex items-center justify-between group">
 <span class="text-[11px] font-code text-text-main group-hover:text-primary transition-colors">NIST-AI</span>
 <label class="relative inline-flex items-center cursor-pointer">
@@ -172,14 +172,14 @@
 <div class="flex items-center gap-8 font-mono text-[10px] tracking-widest uppercase">
 <div class="flex items-center gap-2">
 <span class="w-2 h-2 bg-primary rounded-full animate-pulse shadow-[0_0_8px_#00FF94]"></span>
-<span class="text-primary font-bold">Uplink: Secure</span>
+<span class="text-primary font-bold" id="dashboard-uplink-status">Uplink: Secure</span>
 </div>
-<div class="text-text-muted">Node: <span class="text-text-main">US-EAST-01</span></div>
-<div class="text-text-muted">Latency: <span class="text-text-main">0.02ms</span></div>
+<div class="text-text-muted">Node: <span class="text-text-main" id="dashboard-node">US-EAST-01</span></div>
+<div class="text-text-muted">Latency: <span class="text-text-main" id="dashboard-latency">0.02ms</span></div>
 </div>
 <div class="flex items-center gap-6">
 <div class="font-mono text-[10px] text-text-muted">
-                    USER: <span class="text-text-main">OPERATOR_08</span>
+                    USER: <span class="text-text-main" id="dashboard-operator">OPERATOR_08</span>
 </div>
 </div>
 </header>
@@ -188,17 +188,17 @@
 <div class="w-full max-w-4xl space-y-2">
 <div class="flex items-center justify-between px-1">
 <label class="font-mono text-[10px] font-bold text-primary uppercase tracking-widest">Select Target Infrastructure</label>
-<span class="font-mono text-[10px] text-text-muted uppercase">Protocol: SSH/HTTPS</span>
+<span class="font-mono text-[10px] text-text-muted uppercase" id="dashboard-protocol">Protocol: SSH/HTTPS</span>
 </div>
 <div class="relative group">
 <div class="absolute -inset-0.5 bg-primary/20 opacity-0 group-focus-within:opacity-100 transition duration-500"></div>
 <div class="relative flex items-center bg-black border border-border group-focus-within:border-primary transition-all p-6">
 <span class="text-primary font-mono text-lg mr-4">&gt;&gt;&gt;</span>
-<input class="flex-1 bg-transparent border-none outline-none focus:ring-0 text-text-main font-mono text-xl placeholder-text-muted" placeholder="TYPE_TARGET_NAME" type="text" value="repository: neural-net-v2-production"/>
+<input class="flex-1 bg-transparent border-none outline-none focus:ring-0 text-text-main font-mono text-xl placeholder-text-muted" id="dashboard-target-input" placeholder="TYPE_TARGET_NAME" type="text" value="repository: neural-net-v2-production"/>
 <div class="w-3 h-7 bg-primary cursor-blink ml-2"></div>
 </div>
 </div>
-<div class="grid grid-cols-3 gap-4 pt-2">
+<div class="grid grid-cols-3 gap-4 pt-2" id="dashboard-targets-list">
 <div class="border border-primary bg-primary/5 p-3 cursor-pointer">
 <p class="text-[10px] font-mono text-primary font-bold">neural-net-v2</p>
 <p class="text-[9px] font-code text-text-muted mt-1">Status: Ready</p>
@@ -244,7 +244,7 @@
 </div>
 </div>
 <div class="flex-1 p-6 font-code text-xs leading-relaxed overflow-y-auto terminal-text">
-<div class="space-y-1">
+<div class="space-y-1" id="dashboard-logs-list">
 <div class="flex gap-4">
 <span class="text-text-muted shrink-0">[14:20:01]</span>
 <span class="text-primary">SYSTEM:</span>
@@ -293,9 +293,9 @@
 </div>
 <div class="h-8 border-t border-border bg-surface/30 px-4 flex items-center justify-between shrink-0">
 <div class="flex gap-6 font-code text-[9px] text-text-muted">
-<span>ENTRIES: 1,402</span>
-<span>ERRORS: 1</span>
-<span>WARNINGS: 0</span>
+<span id="dashboard-log-entries">ENTRIES: 1,402</span>
+<span id="dashboard-log-errors">ERRORS: 1</span>
+<span id="dashboard-log-warnings">WARNINGS: 0</span>
 </div>
 <div class="text-[9px] font-mono text-text-muted">
                         ASCII_UTF-8 // SECURE_SOCKET_01
@@ -307,9 +307,10 @@
 <div class="px-4 bg-critical text-background font-mono text-[10px] font-bold h-full flex items-center shrink-0">
                 LIVE_THREAT_INTEL
             </div>
-<div class="flex-1 px-4 font-code text-[10px] text-text-muted whitespace-nowrap overflow-hidden italic">
+<div class="flex-1 px-4 font-code text-[10px] text-text-muted whitespace-nowrap overflow-hidden italic" id="dashboard-threat-feed">
 <span class="text-critical">CRITICAL:</span> CVE-2024-2191 detected in transformer library v4.2 --- <span class="text-warning">WARNING:</span> New jailbreak pattern identified for Llama-3 variants --- <span class="text-primary">INFO:</span> EU AI Act compliance module updated to v1.2.4 --- <span class="text-critical">CRITICAL:</span> Unauthorized egress from model-training-subnet-B detected...
             </div>
 </footer>
 </main>
+<script defer="" src="../assets/live-data.js"></script>
 </body></html>

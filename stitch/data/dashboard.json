@@ -1,0 +1,87 @@
+{
+  "refreshMs": 20000,
+  "systemStatus": "ONLINE",
+  "uplinkStatus": "Secure",
+  "node": "US-EAST-01",
+  "latency": "0.02ms",
+  "user": "OPERATOR_08",
+  "protocol": "SSH/HTTPS",
+  "targetInput": "repository: neural-net-v2-production",
+  "frameworks": [
+    { "name": "NIST-AI", "enabled": true },
+    { "name": "ISO-42001", "enabled": true },
+    { "name": "EU-AI-ACT", "enabled": false }
+  ],
+  "targets": [
+    { "name": "neural-net-v2", "status": "Ready", "selected": true },
+    { "name": "llm-tokenizer-x", "status": "Standby", "selected": false },
+    { "name": "payment-gw-ai", "status": "Critical Failure", "selected": false }
+  ],
+  "logs": [
+    {
+      "time": "14:20:01",
+      "source": "SYSTEM",
+      "level": "info",
+      "message": "Command session initialized. Welcome OPERATOR_08."
+    },
+    {
+      "time": "14:20:05",
+      "source": "TARGET",
+      "level": "info",
+      "message": "Uplink established with neural-net-v2-production."
+    },
+    {
+      "time": "14:20:06",
+      "source": "HISTORIC",
+      "level": "warning",
+      "message": "Last scan (2024-05-18) resulted in [PASS]."
+    },
+    {
+      "time": "14:21:12",
+      "source": "LOGS",
+      "level": "info",
+      "message": "Checking model weights for encryption layers... [OK]"
+    },
+    {
+      "time": "14:21:14",
+      "source": "LOGS",
+      "level": "info",
+      "message": "Scanning for PII leakage in training dataset headers... [OK]"
+    },
+    {
+      "time": "14:21:18",
+      "source": "ALERT",
+      "level": "critical",
+      "message": "Unprotected metadata detected in /cache/temp_v1. [CRITICAL_RISK]"
+    },
+    {
+      "time": "14:21:25",
+      "source": "READY",
+      "level": "info",
+      "message": "Awaiting execution command. Target fully mapped."
+    }
+  ],
+  "summary": {
+    "entries": 1402,
+    "errors": 1,
+    "warnings": 0
+  },
+  "threats": [
+    {
+      "severity": "critical",
+      "message": "CVE-2024-2191 detected in transformer library v4.2"
+    },
+    {
+      "severity": "warning",
+      "message": "New jailbreak pattern identified for Llama-3 variants"
+    },
+    {
+      "severity": "info",
+      "message": "EU AI Act compliance module updated to v1.2.4"
+    },
+    {
+      "severity": "critical",
+      "message": "Unauthorized egress from model-training-subnet-B detected"
+    }
+  ]
+}

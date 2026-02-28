@@ -83,7 +83,7 @@
         }
     </style>
 </head>
-<body class="min-h-screen flex overflow-hidden selection:bg-primary selection:text-black">
+<body class="min-h-screen flex overflow-hidden selection:bg-primary selection:text-black" data-page="scan-report">
 <aside class="w-64 border-r border-border bg-surface flex-shrink-0 flex flex-col h-screen z-30">
 <div class="p-6 border-b border-border flex items-center gap-3">
 <div class="size-6 text-primary">
@@ -99,33 +99,33 @@
 <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
 <span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
 </span>
-<span class="text-[10px] font-mono text-primary">ONLINE</span>
+<span class="text-[10px] font-mono text-primary" id="scan-system-status">ONLINE</span>
 </div>
 </div>
 <div class="w-full bg-background h-1.5 border border-border">
-<div class="bg-primary h-full w-[94%] relative"></div>
+<div class="bg-primary h-full w-[94%] relative" id="scan-system-health-bar"></div>
 </div>
 <div class="flex justify-between mt-1 text-[9px] font-mono text-text-muted">
-<span>CPU: 32%</span>
-<span>MEM: 64%</span>
+<span id="scan-cpu">CPU: 32%</span>
+<span id="scan-memory">MEM: 64%</span>
 </div>
 </div>
 <nav class="flex-1 overflow-y-auto py-6 px-3 space-y-1">
-<a class="flex items-center gap-3 px-3 py-2 text-text-muted hover:text-white hover:bg-white/5 transition-colors group" href="#">
+<a class="flex items-center gap-3 px-3 py-2 text-text-muted hover:text-white hover:bg-white/5 transition-colors group" href="../01-dashboard-command/index.html">
 <span class="material-symbols-outlined text-[20px] group-hover:text-primary transition-colors">grid_view</span>
 <span class="text-xs font-mono uppercase tracking-wide">DASHBOARD</span>
 </a>
-<a class="flex items-center gap-3 px-3 py-2 text-text-muted hover:text-white hover:bg-white/5 transition-colors group" href="#">
+<a class="flex items-center gap-3 px-3 py-2 text-text-muted hover:text-white hover:bg-white/5 transition-colors group" href="../02-compliance-codex/index.html">
 <span class="material-symbols-outlined text-[20px] group-hover:text-primary transition-colors">menu_book</span>
 <span class="text-xs font-mono uppercase tracking-wide">COMPLIANCE CODEX</span>
 </a>
-<a class="flex items-center gap-3 px-3 py-2 text-primary bg-primary/10 border-r-2 border-primary transition-colors group" href="#">
+<a class="flex items-center gap-3 px-3 py-2 text-primary bg-primary/10 border-r-2 border-primary transition-colors group" href="../03-scan-report/index.html">
 <span class="material-symbols-outlined text-[20px]">policy</span>
 <span class="text-xs font-mono uppercase tracking-wide font-bold">SCAN REPORTS</span>
 </a>
 <div class="pt-6 mt-6 border-t border-border px-3">
 <h3 class="text-[10px] font-mono text-text-muted uppercase mb-4 pl-1">Active_Frameworks</h3>
-<div class="space-y-3">
+<div class="space-y-3" id="scan-framework-list">
 <label class="flex items-center justify-between cursor-pointer group">
 <span class="text-xs font-mono text-white group-hover:text-primary transition-colors">NIST AI RMF</span>
 <input checked="" class="form-checkbox h-3 w-3 text-primary bg-background border-border rounded-none focus:ring-0 focus:ring-offset-0" type="checkbox"/>
@@ -160,12 +160,12 @@
 </div>
 <div class="flex gap-4 items-center">
 <div class="text-[10px] font-mono text-text-muted uppercase hidden md:block">
-                REPO: <span class="text-white">neural-net-v2</span> // REF: <span class="text-white">HEAD:main</span>
+                REPO: <span class="text-white" id="scan-repo">neural-net-v2</span> // REF: <span class="text-white" id="scan-ref">HEAD:main</span>
 </div>
 <div class="h-4 w-px bg-border hidden md:block"></div>
 <div class="flex items-center gap-2">
 <span class="text-text-muted text-xs font-mono">REPORT_ID:</span>
-<span class="text-primary text-xs font-mono font-bold tracking-wider">NG-9921-X</span>
+<span class="text-primary text-xs font-mono font-bold tracking-wider" id="scan-report-id">NG-9921-X</span>
 </div>
 <button class="flex items-center justify-center h-8 w-8 bg-surface border border-border text-white hover:border-primary hover:text-primary transition-colors ml-2">
 <span class="material-symbols-outlined text-[18px]">settings</span>
@@ -174,21 +174,21 @@
 </header>
 <div class="flex-1 overflow-y-auto p-8 relative z-10">
 <section class="mb-10 w-full max-w-7xl mx-auto">
-<div class="relative w-full border border-critical bg-critical/5 p-8 flex flex-col md:flex-row items-center justify-between gap-6 border-glow-critical">
-<div class="absolute top-0 left-0 w-1.5 h-full bg-critical"></div>
+<div class="relative w-full border border-critical bg-critical/5 p-8 flex flex-col md:flex-row items-center justify-between gap-6 border-glow-critical" id="scan-banner">
+<div class="absolute top-0 left-0 w-1.5 h-full bg-critical" id="scan-banner-stripe"></div>
 <div class="flex flex-col gap-1">
 <div class="flex items-center gap-4">
 <span class="material-symbols-outlined text-critical text-[56px]">dangerous</span>
-<h1 class="font-mono font-bold text-5xl md:text-7xl text-critical tracking-tighter text-glow-critical uppercase">CRITICAL FAILURE</h1>
+<h1 class="font-mono font-bold text-5xl md:text-7xl text-critical tracking-tighter text-glow-critical uppercase" id="scan-status-title">CRITICAL FAILURE</h1>
 </div>
-<p class="font-mono text-critical/70 text-xs tracking-[0.2em] uppercase mt-2">
+<p class="font-mono text-critical/70 text-xs tracking-[0.2em] uppercase mt-2" id="scan-status-subtitle">
                         // SCAN_RESULT: COMPLIANCE_VIOLATION // IMMEDIATE_ACTION_REQUIRED
                     </p>
 </div>
 <div class="flex flex-col items-end gap-3">
 <div class="text-right">
 <div class="text-[10px] text-text-muted font-mono mb-1 tracking-widest">TIMESTAMP_UTC</div>
-<div class="text-lg font-mono text-white">2023-10-27_14:32:09</div>
+<div class="text-lg font-mono text-white" id="scan-timestamp">2023-10-27_14:32:09</div>
 </div>
 <div class="flex gap-2">
 <button class="flex items-center gap-2 px-4 py-2 border border-border hover:border-text-main bg-surface text-text-main text-xs font-mono transition-all">
@@ -207,10 +207,10 @@
 <div class="flex flex-col items-center justify-center py-4">
 <div class="size-40 border-[10px] border-border flex items-center justify-center relative">
 <svg class="absolute inset-0 rotate-[-90deg]" viewBox="0 0 100 100">
-<circle cx="50" cy="50" fill="transparent" r="45" stroke="#FF2A6D" stroke-dasharray="198 283" stroke-width="10"></circle>
+<circle cx="50" cy="50" fill="transparent" id="scan-pass-rate-circle" r="45" stroke="#FF2A6D" stroke-dasharray="198 283" stroke-width="10"></circle>
 </svg>
 <div class="flex flex-col items-center">
-<span class="text-5xl font-mono font-bold text-white">64%</span>
+<span class="text-5xl font-mono font-bold text-white" id="scan-pass-rate">64%</span>
 <span class="text-[10px] text-text-muted font-mono">GLOBAL</span>
 </div>
 </div>
@@ -218,17 +218,17 @@
 <div class="grid grid-cols-2 gap-4 mt-8 pt-6 border-t border-border">
 <div>
 <div class="text-[9px] text-text-muted font-mono uppercase tracking-tighter">SUCCESS</div>
-<div class="text-2xl font-mono text-primary">91</div>
+<div class="text-2xl font-mono text-primary" id="scan-success-count">91</div>
 </div>
 <div class="text-right">
 <div class="text-[9px] text-text-muted font-mono uppercase tracking-tighter">FAIL</div>
-<div class="text-2xl font-mono text-critical">08</div>
+<div class="text-2xl font-mono text-critical" id="scan-fail-count">08</div>
 </div>
 </div>
 </div>
 <div class="bg-surface border border-border p-6">
 <h3 class="text-text-muted text-[10px] font-mono font-bold tracking-[0.3em] mb-6 uppercase">Severity_Index</h3>
-<div class="space-y-4">
+<div class="space-y-4" id="scan-severity-index">
 <div class="space-y-1">
 <div class="flex items-center justify-between text-[11px] font-mono">
 <span class="text-critical">CRITICAL_VULN</span>
@@ -267,6 +267,7 @@
                     </h3>
 <span class="text-[10px] font-mono text-text-muted uppercase">Sorted by: SEVERITY_DESC</span>
 </div>
+<div id="scan-failed-mandates-list">
 <div class="border border-critical bg-surface/50 relative group">
 <div class="p-6">
 <div class="flex justify-between items-start mb-4">
@@ -293,7 +294,7 @@
 <span class="material-symbols-outlined text-sm">info</span>
 <span class="text-[10px] font-mono uppercase">Internal Reference ID: SEC-772</span>
 </div>
-<a class="w-full sm:w-auto px-6 py-2 border border-critical text-critical text-xs font-bold font-mono hover:bg-critical hover:text-black transition-all text-center uppercase tracking-widest" href="#">
+<a class="w-full sm:w-auto px-6 py-2 border border-critical text-critical text-xs font-bold font-mono hover:bg-critical hover:text-black transition-all text-center uppercase tracking-widest" href="../02-compliance-codex/index.html">
                                 [ VIEW MANDATE DOCUMENTATION ]
                             </a>
 </div>
@@ -325,7 +326,7 @@
 <span class="material-symbols-outlined text-sm">info</span>
 <span class="text-[10px] font-mono uppercase">Internal Reference ID: COMP-EU-9</span>
 </div>
-<a class="w-full sm:w-auto px-6 py-2 border border-critical text-critical text-xs font-bold font-mono hover:bg-critical hover:text-black transition-all text-center uppercase tracking-widest" href="#">
+<a class="w-full sm:w-auto px-6 py-2 border border-critical text-critical text-xs font-bold font-mono hover:bg-critical hover:text-black transition-all text-center uppercase tracking-widest" href="../02-compliance-codex/index.html">
                                 [ VIEW MANDATE DOCUMENTATION ]
                             </a>
 </div>
@@ -357,9 +358,10 @@
 <span class="material-symbols-outlined text-sm">info</span>
 <span class="text-[10px] font-mono uppercase">Internal Reference ID: APPSEC-02</span>
 </div>
-<a class="w-full sm:w-auto px-6 py-2 border border-warning text-warning text-xs font-bold font-mono hover:bg-warning hover:text-black transition-all text-center uppercase tracking-widest" href="#">
+<a class="w-full sm:w-auto px-6 py-2 border border-warning text-warning text-xs font-bold font-mono hover:bg-warning hover:text-black transition-all text-center uppercase tracking-widest" href="../02-compliance-codex/index.html">
                                 [ VIEW MANDATE DOCUMENTATION ]
                             </a>
+</div>
 </div>
 </div>
 </div>
@@ -369,10 +371,10 @@
 <div class="flex items-center justify-between mb-4">
 <h3 class="text-primary font-mono font-bold text-sm flex items-center gap-2 uppercase">
 <span class="material-symbols-outlined text-primary text-[20px]">verified</span>
-                            Passed_Checks (91)
+                            Passed_Checks (<span id="scan-passed-count">91</span>)
                         </h3>
 </div>
-<div class="space-y-2">
+<div class="space-y-2" id="scan-passed-list">
 <div class="bg-surface/30 border border-border p-3 flex items-center justify-between hover:border-primary/50 transition-colors cursor-pointer">
 <div class="flex flex-col">
 <span class="text-[9px] text-text-muted font-mono font-bold">NIST-AI-3.1</span>
@@ -401,10 +403,10 @@
 </div>
 <div>
 <h3 class="text-text-muted font-mono font-bold text-sm mb-4 uppercase">
-                        Not_Applicable (12)
+                        Not_Applicable (<span id="scan-not-applicable-count">12</span>)
                     </h3>
 <div class="bg-surface/20 border border-border p-4">
-<div class="flex flex-col gap-3">
+<div class="flex flex-col gap-3" id="scan-not-applicable-list">
 <div class="flex items-center justify-between text-[11px] font-mono text-text-muted">
 <span class="uppercase">Voice_Biometrics_Check</span>
 <span class="text-[9px] px-1 border border-text-muted">N/A</span>
@@ -425,11 +427,20 @@
                     NEON_GUARDIAN // TERMINAL_ACCESS: ADMIN_LEVEL_4 // ENCRYPTION: ACTIVE
                 </div>
 <div class="text-[10px] font-mono uppercase">
-                    SESSION_TOKEN: 0x99281-AF-2023 // NODE: SG-BETA-01
+                    SESSION_TOKEN: <span id="scan-session-token">0x99281-AF-2023</span> // NODE: <span id="scan-node">SG-BETA-01</span>
                 </div>
 </div>
 </footer>
 </div>
+<footer class="h-8 bg-surface border-t border-border flex items-center overflow-hidden shrink-0 z-10">
+<div class="px-4 bg-critical text-background font-mono text-[10px] font-bold h-full flex items-center shrink-0">
+                LIVE_THREAT_INTEL
+            </div>
+<div class="flex-1 px-4 font-mono text-[10px] text-text-muted whitespace-nowrap overflow-hidden italic" id="scan-threat-feed">
+<span class="text-critical">CRITICAL:</span> CVE-2024-2191 detected in transformer library v4.2 --- <span class="text-warning">WARNING:</span> New jailbreak pattern identified for Llama-3 variants --- <span class="text-primary">INFO:</span> EU AI Act compliance module updated to v1.2.4 --- <span class="text-critical">CRITICAL:</span> Unauthorized egress from model-training-subnet-B detected...
+            </div>
+</footer>
 </main>
 <div class="fixed inset-0 pointer-events-none z-50 mix-blend-overlay opacity-10 scanline"></div>
+<script defer="" src="../assets/live-data.js"></script>
 </body></html>

@@ -6,6 +6,10 @@ Project ID: `17364003346462371476`
 - `stitch/01-dashboard-command/index.html`
 - `stitch/02-compliance-codex/index.html`
 - `stitch/03-scan-report/index.html`
+- `stitch/assets/live-data.js`
+- `stitch/data/dashboard.json`
+- `stitch/data/compliance-codex.json`
+- `stitch/data/scan-report.json`
 
 ## Downloaded hosted images (via `curl -L`)
 - `stitch/assets/compliance-avatar.png`
@@ -13,3 +17,11 @@ Project ID: `17364003346462371476`
 
 ## Note
 Only one direct hosted image URL was present in the provided screen code payload.
+
+## Live data wiring
+- Each HTML page now sets `data-page` on `<body>` and loads `../assets/live-data.js`.
+- The loader fetches live JSON in this order:
+  - Dashboard: `window.NEON_DATA_ENDPOINTS.dashboard` -> `/api/dashboard` -> `../data/dashboard.json`
+  - Compliance Codex: `window.NEON_DATA_ENDPOINTS.codex` -> `/api/compliance-codex` -> `../data/compliance-codex.json`
+  - Scan Report: `window.NEON_DATA_ENDPOINTS.scanReport` -> `/api/scan-report` -> `../data/scan-report.json`
+- Existing HTML remains as visual fallback if live fetch fails.
